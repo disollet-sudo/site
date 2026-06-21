@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Di Solle</title>
-<!-- Atualizado o link do ícone da aba com a nova logo -->
 <link rel="icon" type="image/png" href="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w64">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -150,6 +149,34 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
   </div>
 </div>
 
+<div class="modal" id="modal-upload" onclick="if(event.target===this) fecharModalUpload()">
+  <div class="modal-box" style="padding: 24px; max-width: 400px; text-align: center;">
+    <h3 style="margin-bottom:16px; color:var(--verde-dk); font-size: 16px;">⬆️ Subir Pedido Manual (PDF)</h3>
+    <input type="file" id="file-manual" accept=".pdf" style="margin-bottom: 20px; width:100%; padding:10px; border:1px solid var(--borda); border-radius:8px;">
+    <div style="display:flex; gap:8px; justify-content:center;">
+      <button class="btn" onclick="editarPedidoManual()">✏️ Editar Pedido</button>
+      <button class="btn prim" onclick="enviarPdfManual()">🚀 Enviar para Di Solle</button>
+    </div>
+    <button class="btn" style="margin-top:12px; margin-bottom:0; background:none; border:none; border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
+  </div>
+</div>
+
+<div class="modal" id="modal-novo-cliente" onclick="if(event.target===this) fecharModalNovoCliente()">
+  <div class="modal-box" style="padding: 24px; max-width: 400px; max-height: 94vh;">
+    <h3 style="margin-bottom:16px; color:var(--verde-dk); font-size: 16px; text-align:center;">➕ Novo Cliente</h3>
+    <div class="scroll-form">
+      <div class="field"><label>CNPJ / CPF</label><input type="text" id="nc-cnpj" onblur="verificarNovoClienteExistente(this.value)" placeholder="Digite para verificar..."></div>
+      <div class="field"><label>Razão Social</label><input type="text" id="nc-razao"></div>
+      <div class="field"><label>Nome Fantasia</label><input type="text" id="nc-fantasia"></div>
+      <div class="field"><label>Telefone</label><input type="text" id="nc-telefone"></div>
+      <div class="field"><label>Endereço</label><input type="text" id="nc-endereco"></div>
+      <div class="field"><label>Estado</label><input type="text" id="nc-estado"></div>
+    </div>
+    <button class="btn prim" onclick="salvarNovoCliente()">Salvar Cliente</button>
+    <button class="btn" style="margin-bottom:0;" onclick="fecharModalNovoCliente()">Cancelar</button>
+  </div>
+</div>
+
 <div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
   <div class="modal-box" style="padding: 20px; max-width: 450px; max-height: 85vh;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -163,7 +190,6 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 
 <header>
   <div class="header-inner">
-    <!-- Atualizado com a nova logo no top da página com transparência -->
     <div class="logo-area" id="logo-area">
       <img src="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w300" alt="Di Solle">
     </div>
@@ -184,6 +210,11 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
     <button class="btn-lim" onclick="limFiltros()">✕ Limpar</button>
     
     <div class="top-actions">
+      <span style="display:flex; align-items:center; gap:8px;" id="icons-actions">
+        <button class="btn-lim" onclick="abrirModalUpload()" title="Subir Pedido Manual" style="padding:4px 8px; font-size:16px; background:none; border:none;">⬆️</button>
+        <button class="btn-lim" onclick="abrirModalNovoCliente()" title="Adicionar Cliente Manualmente" style="padding:4px 8px; font-size:16px; background:none; border:none;">➕</button>
+      </span>
+      
       <span style="font-size:13px; font-weight:600; color:var(--verde-dk); display:none; align-items:center; gap:6px; background:var(--verde-lt); padding:4px 10px; border-radius:12px;" id="info-repre-box">
         Rep: <span id="info-repre-txt"></span>
         <button onclick="abrirModalRepre()" style="background:none; border:none; color:var(--sub); text-decoration:underline; cursor:pointer; font-size:11px;">(Trocar)</button>
@@ -246,7 +277,6 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
   </aside>
 </div>
 
-<!-- BARRA MOBILE -->
 <div class="mob-bar" id="mob-bar">
   <div class="mb-info" id="mb-info">Selecione produtos</div>
   <button class="mb-btn" onclick="abrirSheet()">Avançar</button>
@@ -254,7 +284,6 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 
 <div class="sh-overlay" id="sh-ov" onclick="fecharSheet()"></div>
 
-<!-- BOTTOM SHEET MOBILE -->
 <div class="b-sheet" id="b-sheet">
   <div class="sh-header">
     <div class="sh-handle"></div>
@@ -332,7 +361,7 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
   <div class="modal-box" style="padding: 24px; max-width: 400px; height: auto; max-height: 94vh;">
     <h3 style="margin-bottom:12px; color:var(--verde-dk); font-size: 16px; text-align: center;">📋 DADOS DO CLIENTE</h3>
     <div class="scroll-form">
-      <div class="field"><label>CNPJ / CPF</label><input type="text" id="cli-cnpj" placeholder="Digite o CNPJ ou CPF"></div>
+      <div class="field"><label>CNPJ / CPF</label><input type="text" id="cli-cnpj" placeholder="Digite para buscar e auto preencher..." onblur="buscarClienteAoDigitar(this.value)"></div>
       <div class="field"><label>Razão Social</label><input type="text" id="cli-razao" placeholder="Razão Social ou Nome Completo"></div>
       <div class="field"><label>Fantasia (Opcional)</label><input type="text" id="cli-fantasia" placeholder="Nome Fantasia"></div>
       <div class="field"><label>Endereço Completo</label><input type="text" id="cli-endereco" placeholder="Rua, Número, Bairro, Cidade"></div>
@@ -341,7 +370,7 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
       <div class="field"><label>Observações</label><textarea id="cli-obs" rows="3" placeholder="Informações adicionais do pedido..."></textarea></div>
     </div>
     <div style="margin-top: 10px;">
-      <button class="btn prim" id="btn-salvar-cli" onclick="confirmarSalvamentoPedido()" style="margin-bottom: 8px;">Enviar</button>
+      <button class="btn prim" id="btn-salvar-cli" onclick="confirmarSalvamentoPedido()" style="margin-bottom: 8px;">Enviar e Finalizar</button>
       <button class="btn" onclick="fecharModalCliente()">Cancelar</button>
     </div>
   </div>
@@ -350,10 +379,11 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 <div class="toast" id="toast"></div>
 
 <script>
-// !!! ATENÇÃO: SUBSTUTA PELA URL REAL GERADA NA IMPLANTAÇÃO !!!
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbweA9MJybmUPu9c66apC3dpHqBFn4ZaHRTmJJ1YVJ5v6hUKg8t1lccgqp4RSf8qdK9zmg/exec";
+// !!! ATENÇÃO: SUBSTITUA PELA SUA URL REAL GERADA NA IMPLANTAÇÃO !!!
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbxF4qL_BNNEkIDdpFZzRCTG89ki6VSs8XTlQJd0fdxVoV_nbrqi6go8WH2KFn6-xg-8gQ/exec";
 
 let PRODUTOS = [];
+let CLIENTES = []; // ARRAY PARA GUARDAR OS CLIENTES DO BACKEND
 let SELECIONADOS = {}; 
 let DADOS_PDF_PRONTO = null;
 let FRETE_REGRAS = {};
@@ -397,7 +427,10 @@ async function carregarDados(force=false){
   try{
     const r = await fetch(URL_GOOGLE_SCRIPT + (force?'?atualizar=true':''));
     const d = await r.json();
-    PRODUTOS = d.produtos || []; FRETE_REGRAS = d.freteRegras || {};
+    PRODUTOS = d.produtos || []; 
+    FRETE_REGRAS = d.freteRegras || {};
+    CLIENTES = d.clientes || []; // POPULA CLIENTES
+    
     let ufs = d.estados || Object.keys(FRETE_REGRAS);
     let ufd = document.getElementById('uf-d'), ufm = document.getElementById('uf-m');
     ufd.innerHTML = '<option value="">Selecione o Estado...</option>'; ufm.innerHTML = '<option value="">Selecione o Estado...</option>';
@@ -410,6 +443,144 @@ function sincronizarPlanilha(){
   document.getElementById('btn-sync').innerText = "Sincronizando..."; document.getElementById('grid').innerHTML = "";
   carregarDados(true).then(()=> { document.getElementById('btn-sync').innerText = "🔄 Sincronizar Catálogo"; showToast("Catálogo atualizado!"); });
 }
+
+// ======================= NOVAS FUNÇÕES PARA O CLIENTE ==========================
+
+function abrirModalUpload() { document.getElementById('modal-upload').style.display='flex'; document.getElementById('modal-upload').classList.add('open'); }
+function fecharModalUpload() { document.getElementById('modal-upload').classList.remove('open'); setTimeout(()=>document.getElementById('modal-upload').style.display='none',300); }
+
+function abrirModalNovoCliente() { document.getElementById('modal-novo-cliente').style.display='flex'; document.getElementById('modal-novo-cliente').classList.add('open'); }
+function fecharModalNovoCliente() { document.getElementById('modal-novo-cliente').classList.remove('open'); setTimeout(()=>document.getElementById('modal-novo-cliente').style.display='none',300); }
+
+// Ao digitar o CNPJ em "Novo Cliente"
+function verificarNovoClienteExistente(cnpj) {
+  if(!cnpj) return;
+  let c = CLIENTES.find(x => x.cnpj === cnpj);
+  if(c) {
+    alert("⚠️ Este cliente já existe na base de dados!");
+    document.getElementById('nc-razao').value = c.razao || '';
+    document.getElementById('nc-fantasia').value = c.fantasia || '';
+    document.getElementById('nc-endereco').value = c.endereco || '';
+    document.getElementById('nc-telefone').value = c.telefone || '';
+    document.getElementById('nc-estado').value = c.estado || '';
+  }
+}
+
+// Ao digitar o CNPJ na "Finalização de Pedido"
+function buscarClienteAoDigitar(cnpj) {
+  if(!cnpj) return;
+  let c = CLIENTES.find(x => x.cnpj === cnpj);
+  if(c) {
+    document.getElementById('cli-razao').value = c.razao || '';
+    document.getElementById('cli-fantasia').value = c.fantasia || '';
+    document.getElementById('cli-endereco').value = c.endereco || '';
+    document.getElementById('cli-telefone').value = c.telefone || '';
+    showToast("✅ Dados do cliente preenchidos automaticamente.");
+  } else {
+    if(confirm("❌ Cliente não encontrado na base! Deseja cadastrar este novo cliente agora?")) {
+      fecharModalCliente();
+      setTimeout(() => {
+        abrirModalNovoCliente();
+        document.getElementById('nc-cnpj').value = cnpj;
+      }, 350);
+    }
+  }
+}
+
+// Salva o novo cliente
+function salvarNovoCliente() {
+  let c = {
+    cnpj: document.getElementById('nc-cnpj').value,
+    razao: document.getElementById('nc-razao').value,
+    fantasia: document.getElementById('nc-fantasia').value,
+    telefone: document.getElementById('nc-telefone').value,
+    endereco: document.getElementById('nc-endereco').value,
+    estado: document.getElementById('nc-estado').value
+  };
+  
+  if(!c.cnpj || !c.razao) { alert("Preencha ao menos o CNPJ e a Razão Social."); return; }
+  
+  // Validação Front-End dupla
+  if(CLIENTES.find(x => x.cnpj === c.cnpj || x.razao === c.razao)) {
+    alert("Cliente já se encontra cadastrado na base."); return;
+  }
+
+  document.getElementById('loading-modal').style.display='flex';
+  document.getElementById('loading-modal').classList.add('open');
+  
+  fetch(URL_GOOGLE_SCRIPT, {
+    method:'POST',
+    body: JSON.stringify({ acao: 'salvar_cliente', cliente: c })
+  }).then(r=>r.json()).then(res=>{
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display='none';
+    if(res.status === 'success') {
+      CLIENTES.push(c); // Adiciona na memória local pra ficar rápido
+      showToast("✅ Cliente salvo com sucesso!");
+      fecharModalNovoCliente();
+      
+      // Se tiver item no carrinho, já reabre o modal de pedido preenchido
+      if(Object.keys(SELECIONADOS).length > 0) {
+        document.getElementById('modal-cliente').style.display='flex';
+        document.getElementById('modal-cliente').classList.add('open');
+        document.getElementById('cli-cnpj').value = c.cnpj;
+        document.getElementById('cli-razao').value = c.razao;
+        document.getElementById('cli-fantasia').value = c.fantasia;
+        document.getElementById('cli-telefone').value = c.telefone;
+        document.getElementById('cli-endereco').value = c.endereco;
+      }
+    } else { alert(res.message); }
+  }).catch(e=>{
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display='none';
+    alert("Erro de conexão com o banco de dados.");
+  });
+}
+
+// Enviar o PDF Manual pro Backend
+function enviarPdfManual() {
+  let fileInput = document.getElementById('file-manual');
+  if(!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
+  
+  let file = fileInput.files[0];
+  let reader = new FileReader();
+  
+  reader.onload = function(e) {
+    document.getElementById('loading-modal').style.display='flex';
+    document.getElementById('loading-modal').classList.add('open');
+    let base64 = e.target.result;
+    
+    fetch(URL_GOOGLE_SCRIPT, {
+      method: 'POST',
+      body: JSON.stringify({
+        acao: 'upload_pdf_manual',
+        fileName: CODIGO_REPRE + " - Pedido Manual - " + file.name,
+        fileMimeType: file.type,
+        fileBase64: base64
+      })
+    }).then(r=>r.json()).then(res=>{
+      fecharModalUpload();
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display='none';
+      if(res.status === 'success') { 
+        document.getElementById('modal-sucesso').style.display='flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+        fileInput.value = "";
+      } else alert("Erro: " + res.message);
+    }).catch(()=>{ 
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display='none';
+      alert("Erro de rede ao enviar o arquivo."); 
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+function editarPedidoManual() {
+  alert("⚠️ Funcionalidade Restrita:\nA extração automática de produtos de um PDF exige mapeamento do layout exato (ex: Document AI OCR). Neste momento, caso precise editar os valores ou quantidade, utilize o fluxo de montagem pelo Catálogo/Carrinho do app.");
+}
+// ==============================================================================
+
 
 function somarBrutoPrevia(){
   let bruto = 0;
@@ -670,7 +841,6 @@ function confirmarSalvamentoPedido() {
     document.getElementById('loading-modal').classList.remove('open'); document.getElementById('loading-modal').style.display = 'none';
     
     if(res.status === 'success') {
-      // UTILIZANDO O NOME GERADO PELO SERVIDOR AQUI
       let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
       let a = document.createElement('a'); a.href = res.base64; a.download = nomeFinal; document.body.appendChild(a); a.click(); document.body.removeChild(a);
       
@@ -699,7 +869,6 @@ function acionarPdf(tipo) {
   .then(r => r.json()).then(res => {
     document.getElementById('loading-modal').classList.remove('open'); document.getElementById('loading-modal').style.display = 'none';
     if(res.status === 'success') {
-      // UTILIZANDO O NOME GERADO PELO SERVIDOR AQUI
       let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
       let a = document.createElement('a'); a.href = res.base64; a.download = nomeFinal; document.body.appendChild(a); a.click(); document.body.removeChild(a);
       document.getElementById('modal-sucesso').style.display = 'flex'; document.getElementById('modal-sucesso').classList.add('open');
