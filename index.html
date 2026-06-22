@@ -49,16 +49,23 @@
     </div>
     <div class="field">
       <label>Buscar Produto</label>
-      <input type="text" id="busca" placeholder="Nome ou código..." oninput="render()">
+      <!-- Modal: Pesquisa Geral de Clientes -->
+<div class="modal" id="modal-buscar-cliente" onclick="if(event.target===this) fecharModalBuscarCliente()">
+  <div class="modal-box" style="padding:24px;max-width:450px;max-height:90vh;">
+    <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">🔍 Pesquisa Geral de Clientes</h3>
+    
+    <!-- NOVO COMPONENTE: Campo + Botão -->
+    <div class="field" style="display:flex;gap:8px;">
+      <input type="text" id="input-busca-cliente" placeholder="Digite CNPJ, Fantasia ou Cidade..." style="flex:1;padding:10px;border:1px solid var(--borda);border-radius:8px;">
+      <button class="btn prim" style="width:auto;margin:0;" onclick="executarBuscaClienteBtn()">Pesquisar</button>
     </div>
-    <div class="field">
-      <label>Tabela de Preço</label>
-      <select id="tabela" onchange="calcCart(); render()"></select>
+    
+    <div id="lista-busca-clientes" style="max-height:50vh;overflow-y:auto;border:1px solid var(--borda);border-radius:8px;background:#fff;">
+      <div class="vazio">Digite parâmetros para buscar...</div>
     </div>
-    <div class="field">
-      <label>Apenas Promoções?</label>
-      <select id="filtro-promo" onchange="render()">
-        <option value="todos">Mostrar Todos</option>
+    <button class="btn" style="margin-top:12px;margin-bottom:0;" onclick="fecharModalBuscarCliente()">Fechar Janela</button>
+  </div>
+</div>
         <option value="sim">Apenas Promoções</option>
       </select>
     </div>
