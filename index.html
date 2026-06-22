@@ -5,304 +5,305 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Di Solle</title>
   <link rel="icon" type="image/png" href="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w64">
-  <!-- Para editar o visual, abra: css/estilo.css -->
   <link rel="stylesheet" href="estilo.css">
 </head>
 <body>
 
-<!-- =============================================
-     MODAIS DE SISTEMA
-     ============================================= -->
-
-<!-- Modal: Login do Representante -->
 <div class="modal" id="modal-repre">
   <div class="modal-box" style="padding:24px;max-width:400px;height:auto;justify-content:center;align-items:center;text-align:center;">
     <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;">👤 Informe seu Código de Representante</h3>
     <input type="text" id="repre-codigo" placeholder="Digite seu código..." style="width:100%;padding:12px;border:1px solid var(--borda);border-radius:8px;margin-bottom:16px;font-size:15px;text-align:center;">
-    <button class="btn prim" onclick="salvarRepre()">Entrar no Sistema</button>
+    <button class="btn prim" onclick="salvarRepre()" style="width:100%;padding:14px;font-size:16px;">Entrar no Sistema</button>
   </div>
 </div>
 
-<!-- Modal: Carregando -->
-<div class="modal" id="loading-modal">
-  <div class="modal-box" style="padding:30px;max-width:320px;height:auto;justify-content:center;align-items:center;text-align:center;background:#fff;">
-    <div class="modal-spin" style="display:block;margin-bottom:16px;"></div>
-    <div style="font-weight:bold;color:var(--verde-dk);font-size:16px;">Processando Solicitação...</div>
-    <div style="font-size:12px;color:var(--sub);margin-top:8px;">Aguarde, executando rotinas. Não feche a página.</div>
+<div class="modal" id="loading-modal" style="z-index:9999;">
+  <div class="modal-box" style="padding:40px;max-width:300px;text-align:center;height:auto;justify-content:center;align-items:center;">
+    <div class="spinner" style="margin:0 auto 20px;"></div>
+    <h3 style="color:var(--verde-dk);font-size:16px;margin:0;" id="loading-text">Processando...</h3>
   </div>
 </div>
 
-<!-- Modal: Sucesso -->
 <div class="modal" id="modal-sucesso" onclick="clicouForaSucesso(event)">
-  <div class="modal-box" style="padding:30px 20px;max-width:320px;height:auto;text-align:center;position:relative;background:#fff;">
-    <button class="modal-close-btn" onclick="fecharModalSucesso()" style="background:#f4f4f2;color:#333;">✕</button>
-    <div style="font-size:50px;margin-bottom:10px;">✅</div>
-    <h3 style="color:var(--verde-dk);font-size:20px;margin-bottom:8px;">Ação Concluída!</h3>
-    <p style="font-size:13px;color:var(--sub);">A solicitação foi processada com sucesso.</p>
-    <button class="btn prim" onclick="fecharModalSucesso()" style="margin-top:20px;">Fechar</button>
+  <div class="modal-box" style="padding:40px 30px;max-width:350px;text-align:center;height:auto;justify-content:center;align-items:center;">
+    <div style="width:64px;height:64px;background:var(--verde-lt);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;color:var(--verde);font-size:32px;">✓</div>
+    <h3 style="color:var(--verde-dk);margin-bottom:10px;font-size:20px;">Sucesso!</h3>
+    <p style="color:var(--sub);margin-bottom:24px;font-size:15px;" id="msg-sucesso">Operação realizada.</p>
+    <button class="btn prim" onclick="fecharModalSucesso()" style="width:100%;padding:14px;font-size:16px;">OK</button>
   </div>
 </div>
 
-<!-- =============================================
-     MODAIS DE CLIENTES
-     ============================================= -->
-
-<!-- Modal: Upload PDF Manual -->
-<div class="modal" id="modal-upload" onclick="if(event.target===this) fecharModalUpload()">
-  <div class="modal-box" style="padding:24px;max-width:400px;text-align:center;">
-    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;">⬆️ Subir Pedido Manual (PDF)</h3>
-    <input type="file" id="file-manual" accept=".pdf" style="margin-bottom:20px;width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
-    <button class="btn prim" onclick="enviarPdfManual()" style="width:100%;">🚀 Enviar para Di Solle</button>
-    <button class="btn" style="margin-top:12px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
+<div class="sheet-overlay" id="sh-ov" onclick="fecharSheet()"></div>
+<div class="bottom-sheet" id="b-sheet">
+  <div class="sheet-header">
+    <h3>Filtros e Configurações</h3>
+    <button class="btn-close" onclick="fecharSheet()">×</button>
   </div>
-</div>
-
-<!-- Modal: Novo Cliente -->
-<div class="modal" id="modal-novo-cliente" onclick="if(event.target===this) fecharModalNovoCliente()">
-  <div class="modal-box" style="padding:24px;max-width:400px;max-height:94vh;">
-    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;text-align:center;">➕ Novo Cliente</h3>
-    <div class="scroll-form">
-      <div class="field"><label>CNPJ / CPF</label><input type="text" id="nc-cnpj" onblur="verificarNovoClienteExistente(this.value)" placeholder="Digite o CNPJ..."></div>
-      <div class="field"><label>Razão Social</label><input type="text" id="nc-razao"></div>
-      <div class="field"><label>Nome Fantasia</label><input type="text" id="nc-fantasia"></div>
-      <div class="field"><label>Telefone</label><input type="text" id="nc-telefone"></div>
-      <div class="field"><label>Endereço</label><input type="text" id="nc-endereco"></div>
-      <div class="field"><label>Estado (UF)</label><input type="text" id="nc-estado" maxlength="2" placeholder="Ex: RS"></div>
-      <div class="field"><label>Bairro</label><input type="text" id="nc-bairro"></div>
-      <div class="field"><label>Município (Cidade)</label><input type="text" id="nc-municipio"></div>
-      <div class="field"><label>Número</label><input type="text" id="nc-numero"></div>
-      <div class="field"><label>CEP</label><input type="text" id="nc-cep"></div>
+  <div class="sheet-content">
+    <div class="info-repre" style="margin-bottom:20px;">
+      <span style="font-size:13px;color:var(--sub);">Representante Ativo:</span>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:4px;">
+        <strong style="font-size:16px;color:var(--verde-dk);" id="repre-display">---</strong>
+        <button onclick="trocarRepre()" style="padding:4px 8px;font-size:12px;background:var(--cinza);border:1px solid var(--borda);border-radius:4px;cursor:pointer;">Trocar</button>
+      </div>
     </div>
-    <button class="btn prim" id="btn-salvar-nc" onclick="salvarNovoCliente()">Salvar Cliente</button>
-    <button class="btn" style="margin-bottom:0;" onclick="fecharModalNovoCliente()">Cancelar</button>
-  </div>
-</div>
-
-<!-- Modal: Pesquisa Geral de Clientes -->
-<div class="modal" id="modal-buscar-cliente" onclick="if(event.target===this) fecharModalBuscarCliente()">
-  <div class="modal-box" style="padding:24px;max-width:450px;max-height:90vh;">
-    <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">🔍 Pesquisa Geral de Clientes</h3>
     <div class="field">
-      <input type="text" id="input-busca-cliente" placeholder="Digite CNPJ, Fantasia ou Cidade..." oninput="filtrarClientesBusca()" style="width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
+      <label>Buscar Produto</label>
+      <input type="text" id="busca" placeholder="Nome ou código..." oninput="render()">
     </div>
-    <div id="lista-busca-clientes" style="max-height:50vh;overflow-y:auto;border:1px solid var(--borda);border-radius:8px;background:#fff;">
-      <div class="vazio">Digite parâmetros para buscar...</div>
+    <div class="field">
+      <label>Tabela de Preço</label>
+      <select id="tabela" onchange="calcCart(); render()"></select>
     </div>
-    <button class="btn" style="margin-top:12px;margin-bottom:0;" onclick="fecharModalBuscarCliente()">Fechar Janela</button>
+    <div class="field">
+      <label>Apenas Promoções?</label>
+      <select id="filtro-promo" onchange="render()">
+        <option value="todos">Mostrar Todos</option>
+        <option value="sim">Apenas Promoções</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Prazo de Pagamento</label>
+      <select id="prazo-base" onchange="atualizarOpcoesDesmembramento(); calcCart()"></select>
+    </div>
+    <div class="field">
+      <label>Desmembramento do Prazo</label>
+      <select id="prazo-detalhe" onchange="calcCart()">
+        <option value="">Selecione o prazo base primeiro</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>UF Destino (Frete)</label>
+      <select id="uf" onchange="calcCart()"></select>
+    </div>
+    <button class="btn" style="width:100%;margin-top:10px;" onclick="forcarAtualizacaoBase()">Atualizar Base de Dados</button>
   </div>
 </div>
 
-<!-- Modal: Ficha Completa do Cliente -->
-<div class="modal" id="modal-detalhes-cliente" onclick="if(event.target===this) fecharModalDetalhesCliente()">
-  <div class="modal-box" style="padding:24px;max-width:400px;max-height:90vh;">
-    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;text-align:center;">👤 Ficha Completa do Cliente</h3>
-    <div class="scroll-form" id="conteudo-detalhes-cliente" style="font-size:13px;line-height:1.6;background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid var(--borda);"></div>
-    <button class="btn prim" id="btn-selecionar-cliente-busca" style="margin-top:12px;display:none;">Utilizar este Cliente no Carrinho</button>
-    <button class="btn" style="margin-bottom:0;" onclick="fecharModalDetalhesCliente()">Voltar para a Busca</button>
-  </div>
-</div>
-
-<!-- Modal: Carrinho de Compras -->
-<div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
-  <div class="modal-box" style="padding:20px;max-width:450px;max-height:85vh;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-      <h3 style="color:var(--verde-dk);font-size:16px;display:flex;align-items:center;gap:6px;">🛒 Carrinho de Compras</h3>
-      <button onclick="fecharCarrinho()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">✕</button>
-    </div>
-    <div class="lista-sel" id="lista-d" style="border:none;"></div>
-    <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin-top:10px;margin-bottom:0;">🗑️ Esvaziar Carrinho</button>
-  </div>
-</div>
-
-<!-- =============================================
-     HEADER
-     ============================================= -->
 <header>
   <div class="header-inner">
-    <div class="logo-area" id="logo-area">
-      <img src="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w300" alt="Di Solle">
+    <div class="logo-area">
+      <img id="logo" src="" alt="Di Solle">
     </div>
     <div class="search-wrap">
-      <span class="search-icon">&#128269;</span>
-      <input type="text" id="busca" placeholder="Código, descrição ou EAN..." oninput="filtrar()">
+      <input type="text" id="busca-rapida" placeholder="Buscar produto..." oninput="sincronizarBusca(this.value)">
     </div>
-    <div class="badge" id="badge">0 itens</div>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="abrirSheet()">
+        <svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+      </button>
+      <button class="icon-btn" onclick="abrirCarrinho()" style="position:relative;">
+        <svg viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+        <span class="badge" id="cart-badge">0</span>
+      </button>
+    </div>
   </div>
 </header>
 
-<!-- =============================================
-     FILTROS
-     ============================================= -->
-<div class="filtros">
-  <div class="filtros-inner">
-    <label>PROMOÇÕES:</label>
-    <select id="fil-promo" onchange="filtrar()">
-      <option value="">TODOS</option>
-      <option value="sim">SIM</option>
-    </select>
-    <label>PREÇO ATÉ:</label>
-    <input type="number" id="fil-preco" placeholder="R$" oninput="filtrar()" style="width:80px">
-    <button class="btn-lim" onclick="limFiltros()">✕ Limpar</button>
+<main>
+  <div id="lista" class="grid-produtos"></div>
+</main>
 
-    <div class="top-actions">
-      <span style="display:flex;align-items:center;gap:8px;" id="icons-actions">
-        <button class="btn-lim" onclick="abrirModalUpload()" title="Subir Pedido Manual" style="padding:4px 8px;font-size:16px;background:none;border:none;">⬆️</button>
-        <button class="btn-lim" onclick="abrirModalNovoCliente()" title="Adicionar Cliente Manualmente" style="padding:4px 8px;font-size:16px;background:none;border:none;">➕</button>
-        <button class="btn-lim" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base" style="padding:4px 8px;font-size:16px;background:none;border:none;">🔍👥</button>
-      </span>
-      <span style="font-size:13px;font-weight:600;color:var(--verde-dk);display:none;align-items:center;gap:6px;background:var(--verde-lt);padding:4px 10px;border-radius:12px;" id="info-repre-box">
-        Rep: <span id="info-repre-txt"></span>
-        <button onclick="abrirModalRepre()" style="background:none;border:none;color:var(--sub);text-decoration:underline;cursor:pointer;font-size:11px;">(Trocar)</button>
-      </span>
-      <span style="font-size:12px;color:var(--sub)" id="cont"></span>
-      <button class="btn-lim btn-sync" id="btn-sync" onclick="sincronizarPlanilha()">🔄 Sincronizar Catálogo</button>
-    </div>
+<div class="cart-bar" id="cart-bar" onclick="abrirCarrinho()">
+  <div class="cart-bar-info">
+    <div class="cart-bar-title" id="cart-bar-qtd">0 caixas</div>
+    <div class="cart-bar-sub">Ver pedido</div>
   </div>
+  <div class="cart-bar-total" id="cart-bar-total">R$ 0,00</div>
 </div>
 
-<!-- =============================================
-     CONTEÚDO PRINCIPAL
-     ============================================= -->
-<div class="main">
-  <!-- Grade de Produtos -->
-  <div><div id="grid" class="grid"></div></div>
-
-  <!-- Painel Lateral (Desktop) -->
-  <aside class="painel">
-    <div class="painel-header">
-      <button class="btn prim" onclick="abrirCarrinho()" style="margin:0;font-size:14px;width:100%;">🛒 Ver Carrinho (<span id="cart-count">0</span> itens)</button>
-    </div>
-    <div class="painel-scroll">
-      <div class="field">
-        <label>UF Destino / Estado</label>
-        <select id="uf-d" onchange="alterouUF('uf-d')"><option value="">Selecione o Estado...</option></select>
-      </div>
-      <div class="field">
-        <label>Prazo de Pagamento Base</label>
-        <select id="prazo-d" onchange="alterouPrazoBase('prazo-d','prazo-m')">
-          <option value="14">Antecipado (-14%)</option>
-          <option value="9">28 dias (-9%)</option>
-          <option value="7">35 dias (-7%)</option>
-          <option value="5">42 dias (-5%)</option>
-          <option value="2">56 dias (-2%)</option>
-          <option value="0">63 dias (0%)</option>
-        </select>
-      </div>
-      <div class="field" id="wrapper-subprazo-d" style="display:none;">
-        <label>Opções de Desmembramento</label>
-        <select id="subprazo-d" onchange="syncRegras('subprazo-d','subprazo-m')"></select>
-      </div>
-    </div>
-    <div class="painel-footer">
-      <div class="resultado">
-        <div class="res-row"><span>Tabela Ativa:</span><b id="rd-tabela-ativa" style="color:#000;">M26071</b></div>
-        <div class="res-row"><span>Subtotal Itens:</span><b id="rd-bruto-prod">R$ 0,00</b></div>
-        <div class="res-row"><span>Desc. Prazo (<span id="rd-prazo-pct">0</span>%):</span><b id="rd-prazo-val" style="color:#c0392b;">- R$ 0,00</b></div>
-        <div class="res-row"><span>Valor Total IPI (+):</span><b id="rd-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
-        <div class="res-row"><span>Valor Frete:</span><b id="rd-frete-val">R$ 0,00</b></div>
-        <div class="res-sep"></div>
-        <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rd-total">R$ 0,00</b></div>
-      </div>
-      <div class="btn-group">
-        <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>✓ Finalizar</button>
-        <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
-        <button class="btn pdf-btn" id="btn-disolle-d" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar Di Solle</button>
-      </div>
-    </div>
-  </aside>
-</div>
-
-<!-- =============================================
-     MOBILE: BARRA INFERIOR E BOTTOM SHEET
-     ============================================= -->
-<div class="mob-bar" id="mob-bar">
-  <div class="mb-info" id="mb-info">Selecione produtos</div>
-  <button class="mb-btn" onclick="abrirSheet()">Avançar</button>
-</div>
-
-<div class="sh-overlay" id="sh-ov" onclick="fecharSheet()"></div>
-
-<div class="b-sheet" id="b-sheet">
-  <div class="sh-header">
-    <div class="sh-handle"></div>
-    <button class="btn prim" onclick="abrirCarrinho()" style="margin:0 auto;font-size:14px;width:80%;">🛒 Ver Carrinho (<span id="cart-count-m">0</span> itens)</button>
-  </div>
-  <div class="sh-scroll">
-    <div class="field">
-      <label>UF Destino / Estado</label>
-      <select id="uf-m" onchange="alterouUF('uf-m')"><option value="">Selecione o Estado...</option></select>
-    </div>
-    <div class="field">
-      <label>Prazo de Pagamento Base</label>
-      <select id="prazo-m" onchange="alterouPrazoBase('prazo-m','prazo-d')">
-        <option value="14">Antecipado (-14%)</option>
-        <option value="9">28 dias (-9%)</option>
-        <option value="7">35 dias (-7%)</option>
-        <option value="5">42 dias (-5%)</option>
-        <option value="2">56 dias (-2%)</option>
-        <option value="0">63 dias (0%)</option>
-      </select>
-    </div>
-    <div class="field" id="wrapper-subprazo-m" style="display:none;">
-      <label>Opções de Desmembramento</label>
-      <select id="subprazo-m" onchange="syncRegras('subprazo-m','subprazo-d')"></select>
-    </div>
-  </div>
-  <div class="sh-footer">
-    <div class="resultado">
-      <div class="res-row"><span>Tabela Ativa:</span><b id="rm-tabela-ativa" style="color:#000;">M26071</b></div>
-      <div class="res-row"><span>Subtotal Itens:</span><b id="rm-bruto-prod">R$ 0,00</b></div>
-      <div class="res-row"><span>Desc. Prazo (<span id="rm-prazo-pct">0</span>%):</span><b id="rm-prazo-val" style="color:#c0392b;">- R$ 0,00</b></div>
-      <div class="res-row"><span>Valor Total IPI (+):</span><b id="rm-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
-      <div class="res-row"><span>Valor Frete:</span><b id="rm-frete-val">R$ 0,00</b></div>
-      <div class="res-sep"></div>
-      <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rm-total">R$ 0,00</b></div>
-    </div>
-    <div class="btn-group">
-      <button class="btn prim" id="btn-orc-m" onclick="abrirFluxoFechamento('m')" disabled>✓ Finalizar</button>
-      <button class="btn" id="btn-baixar-m" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
-      <button class="btn pdf-btn" id="btn-disolle-m" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar Di Solle</button>
-    </div>
-    <button class="btn" onclick="fecharSheet()" style="margin-top:10px;margin-bottom:0;width:100%;">Fechar Aba</button>
-  </div>
-</div>
-
-<!-- =============================================
-     MODAL DE PRODUTO (DETALHE)
-     ============================================= -->
-<div class="modal" id="modal" onclick="clicouFora(event)">
+<div class="modal" id="modal-produto" onclick="if(event.target===this) fecharModalProduto()">
   <div class="modal-box">
-    <div class="modal-img-wrap">
-      <button class="modal-close-btn" onclick="fecharModal()">✕</button>
-      <div class="modal-spin" id="modal-spin"></div>
-      <img id="modal-img" src="" alt="" style="display:none" onload="document.getElementById('modal-spin').style.display='none';this.style.display='block'">
+    <div class="modal-header">
+      <h3 id="mp-title">Produto</h3>
+      <button class="btn-close" onclick="fecharModalProduto()">×</button>
     </div>
-    <div class="modal-info">
-      <div class="modal-cod" id="modal-cod"></div>
-      <div class="modal-desc" id="modal-desc"></div>
-      <div class="modal-preco" id="modal-preco"></div>
-      <div class="modal-emb" id="modal-emb"></div>
-      <div class="qty-row">
-        <label>Quantidade:</label>
-        <button class="qty-big-btn" onclick="mudarQtyModal(-1)">-</button>
-        <input type="number" class="qty-big-input" id="modal-qty" value="1" min="1" onfocus="this.select()" onblur="corrigirQtyModal(this)">
-        <button class="qty-big-btn" onclick="mudarQtyModal(1)">+</button>
+    <div class="modal-content">
+      <div class="modal-img-wrap">
+        <img id="mp-img" src="" alt="Produto">
+        <div class="modal-promo-tag" id="mp-promo-tag">PROMOÇÃO</div>
       </div>
-      <button class="btn-add" id="btn-add-modal" onclick="confirmarAddModal()">Adicionar ao Pedido</button>
+      <div class="modal-info">
+        <div class="modal-ref" id="mp-ref">Ref: ---</div>
+        <div class="modal-ncm" id="mp-ncm">NCM: ---</div>
+        <div class="modal-ncm" id="mp-ipi">IPI: ---%</div>
+        <div class="modal-preco" id="mp-preco">R$ 0,00</div>
+        <div class="modal-emb" id="mp-emb">Caixa c/ 1 un.</div>
+        
+        <div class="qty-row">
+          <label>Quantidade (Caixas):</label>
+          <div style="display:flex;">
+            <button class="qty-big-btn" onclick="alterarQtdModal(-1)">-</button>
+            <input type="number" class="qty-big-input" id="mp-qtd" value="1" min="1" onchange="verificarQtdModal()">
+            <button class="qty-big-btn" onclick="alterarQtdModal(1)">+</button>
+          </div>
+        </div>
+        
+        <button class="btn-add" onclick="adicionarDoModal()">Adicionar ao Pedido</button>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- =============================================
-     MODAL CHECKOUT — DADOS DO CLIENTE
-     ============================================= -->
-<div class="modal" id="modal-cliente" onclick="clicouForaCliente(event)">
-  <div class="modal-box" style="padding:24px;max-width:400px;height:auto;max-height:94vh;">
-    <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">📋 DADOS DO CLIENTE</h3>
-    <div class="scroll-form">
-      <div class="field"><label>CNPJ / CPF</label><input type="text" id="cli-cnpj" placeholder="Digite para buscar e auto preencher..." onblur="buscarClienteAoDigitar(this.value)"></div>
-      <div class="field"><label>Razão Social</label><input type="text" id="cli-razao" placeholder="Razão Social ou Nome Completo"></div>
-      <div class="field"><label>Nome Fantasia (Opcional)</label><input type="text" id="cli-fantasia" placeholder="Nome Fantasia"></div>
+<div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
+  <div class="modal-box" style="max-width:800px; height:90vh; max-height:90vh;">
+    <div class="modal-header">
+      <h3>Resumo do Pedido</h3>
+      <button class="btn-close" onclick="fecharCarrinho()">×</button>
+    </div>
+    
+    <div id="aviso-selecao" class="aviso-selecao">
+      Selecione a UF e o Prazo na engrenagem antes de finalizar.
+    </div>
+
+    <div class="modal-content" style="padding:0; overflow-y:auto; background:var(--cinza);">
+      <div class="table-container desktop-only" style="background:#fff; padding:15px;">
+        <table class="cart-table">
+          <thead>
+            <tr>
+              <th width="60">Foto</th>
+              <th>Ref</th>
+              <th>Descrição</th>
+              <th>Cx</th>
+              <th>Unit(c/ desc)</th>
+              <th>IPI(%)</th>
+              <th>V. IPI</th>
+              <th>Total Item</th>
+              <th width="40"></th>
+            </tr>
+          </thead>
+          <tbody id="cart-tbody"></tbody>
+        </table>
+      </div>
+
+      <div id="cart-mobile-list" class="mobile-only" style="background:#fff;"></div>
+
+      <div class="resumo-box" style="margin:15px; background:#fff;">
+        <div class="resumo-title">Resumo Financeiro</div>
+        <div class="resumo-row">
+          <span>Subtotal Produtos:</span>
+          <span id="resumo-subprod">R$ 0,00</span>
+        </div>
+        <div class="resumo-row" style="color:var(--promo);">
+          <span id="resumo-label-prazo">Desconto Prazo (0%):</span>
+          <span id="resumo-val-prazo">- R$ 0,00</span>
+        </div>
+        <div class="resumo-row" style="color:#2980b9;">
+          <span>IPI Total da Indústria (+):</span>
+          <span id="resumo-ipi">+ R$ 0,00</span>
+        </div>
+        <div class="resumo-row" style="color:#d35400;">
+          <span>Frete:</span>
+          <span id="resumo-frete">R$ 0,00</span>
+        </div>
+        <div class="resumo-row" style="margin-top:10px;">
+          <div class="progress-container" id="frete-progress-container" style="display:none; width:100%;">
+            <div class="progress-text" id="frete-progress-text">Faltam R$ 0,00 para Frete Grátis</div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="frete-progress-fill" style="width:0%;"></div>
+            </div>
+          </div>
+        </div>
+        <div class="resumo-total">
+          <span>TOTAL LÍQUIDO:</span>
+          <span id="resumo-total-liq">R$ 0,00</span>
+        </div>
+      </div>
+      
+      <div style="padding:0 15px 15px;">
+        <button class="btn prim" id="btn-iniciar-fim" style="width:100%;padding:14px;font-size:16px;" onclick="iniciarFinalizacao()">Avançar para Dados do Cliente</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-clientes" onclick="if(event.target===this) fecharModalClientes()">
+  <div class="modal-box" style="max-width:600px; height:85vh;">
+    <div class="modal-header">
+      <h3>Selecione ou Cadastre o Cliente</h3>
+      <button class="btn-close" onclick="fecharModalClientes()">×</button>
+    </div>
+    <div class="modal-content" style="display:flex; flex-direction:column; gap:15px; background:var(--cinza); padding:15px;">
+      
+      <div style="background:#fff; padding:15px; border-radius:8px; border:1px solid var(--borda);">
+        <label style="font-weight:600; margin-bottom:8px; display:block;">Buscar Cliente Existente</label>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="inputBuscaCliente" placeholder="Digite CNPJ, Razão ou Fantasia..." style="flex:1; padding:10px; border:1px solid var(--borda); border-radius:4px;">
+          <button class="btn" onclick="executarBuscaCliente()" style="background:var(--verde); color:#fff; border:none;">Pesquisar</button>
+        </div>
+        <div id="lista-clientes-encontrados" style="margin-top:10px; max-height:200px; overflow-y:auto; border:1px solid var(--borda); border-radius:4px; display:none; background:#fff;">
+          </div>
+      </div>
+
+      <div style="text-align:center; font-weight:bold; color:var(--sub);">OU</div>
+
+      <button class="btn prim" onclick="abrirModalNovoCliente()" style="padding:12px;">+ Cadastrar Novo Cliente</button>
+
+      <div id="area-cliente-selecionado" style="display:none; background:#fff; padding:15px; border-radius:8px; border:1px solid var(--verde); margin-top:10px;">
+        <h4 style="color:var(--verde-dk); margin-bottom:10px;">Cliente Selecionado:</h4>
+        <div id="info-cliente-selecionado" style="font-size:13px; color:var(--sub); margin-bottom:15px; background:var(--cinza); padding:10px; border-radius:4px;"></div>
+        
+        <label style="font-weight:600; margin-bottom:5px; display:block; font-size:13px;">Observações do Pedido (Opcional)</label>
+        <textarea id="obs-pedido-final" rows="2" placeholder="Digite observações..." style="width:100%; padding:8px; border:1px solid var(--borda); border-radius:4px; margin-bottom:15px;"></textarea>
+
+        <div style="display:flex; gap:10px; flex-direction:column;">
+          <button class="btn" style="background:#0F6E56; color:#fff;" onclick="finalizarPedidoDiretoDisolle()">Finalizar e Enviar para Disolle</button>
+          <button class="btn" style="background:#2980b9; color:#fff;" onclick="finalizarGerarPDF()">Apenas Gerar PDF</button>
+          <button class="btn" style="background:#8e44ad; color:#fff;" onclick="finalizarEnviarRepre()">Gerar PDF e Enviar p/ Meu E-mail</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-novo-cliente" onclick="if(event.target===this) fecharModalNovoCliente()">
+  <div class="modal-box" style="max-width:500px; height:90vh;">
+    <div class="modal-header">
+      <h3>Cadastrar Novo Cliente</h3>
+      <button class="btn-close" onclick="fecharModalNovoCliente()">×</button>
+    </div>
+    <div class="modal-content" style="overflow-y:auto; padding:20px;">
+      
+      <div class="field">
+        <label>CNPJ *</label>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="nc-cnpj" placeholder="00.000.000/0000-00" style="flex:1;">
+          <button class="btn" onclick="consultarCNPJ()" style="background:#34495e; color:#fff;">Buscar Sefaz</button>
+        </div>
+      </div>
+      
+      <div class="field"><label>Razão Social *</label><input type="text" id="nc-razao"></div>
+      <div class="field"><label>Nome Fantasia</label><input type="text" id="nc-fantasia"></div>
+      <div class="field"><label>Telefone / Celular</label><input type="text" id="nc-telefone"></div>
+      <div class="field"><label>CEP</label><input type="text" id="nc-cep" onblur="buscarCep(this.value)"></div>
+      <div class="field"><label>Endereço</label><input type="text" id="nc-endereco"></div>
+      <div class="field"><label>Número</label><input type="text" id="nc-numero"></div>
+      <div class="field"><label>Bairro</label><input type="text" id="nc-bairro"></div>
+      <div class="field"><label>Município</label><input type="text" id="nc-municipio"></div>
+      <div class="field"><label>Estado (UF)</label><input type="text" id="nc-estado" maxlength="2"></div>
+      
+      <button class="btn prim" id="btn-salvar-nc" onclick="salvarNovoCliente()" style="width:100%; padding:12px; margin-top:10px;">Salvar e Selecionar Cliente</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-cliente" onclick="if(event.target===this) fecharModalCliente()">
+  <div class="modal-box" style="max-width:500px;">
+    <div class="modal-header">
+      <h3>Dados do Cliente</h3>
+      <button class="btn-close" onclick="fecharModalCliente()">×</button>
+    </div>
+    <div class="modal-content" style="max-height:70vh; overflow-y:auto;">
+      <div class="field">
+        <label>CNPJ</label>
+        <div style="display:flex; gap:10px;">
+          <input type="text" id="cli-cnpj" placeholder="00.000.000/0000-00" style="flex:1;">
+          <button class="btn" onclick="consultarCnpjAntigo()" style="background:var(--verde);color:#fff;">Buscar</button>
+        </div>
+      </div>
+      <div class="field"><label>Razão Social</label><input type="text" id="cli-razao" placeholder="Razão Social"></div>
+      <div class="field"><label>Nome Fantasia</label><input type="text" id="cli-fantasia" placeholder="Nome Fantasia"></div>
       <div class="field"><label>Telefone</label><input type="text" id="cli-telefone" placeholder="(XX) XXXXX-XXXX"></div>
       <div class="field"><label>Endereço</label><input type="text" id="cli-endereco" placeholder="Rua, Avenida, etc..."></div>
       <div class="field"><label>Estado</label><input type="text" id="cli-estado" placeholder="Ex: RS"></div>
@@ -320,10 +321,8 @@
   </div>
 </div>
 
-<!-- Toast de notificação -->
 <div class="toast" id="toast"></div>
 
-<!-- Para editar a lógica do app, abra: js/app.js -->
 <script src="app.js"></script>
 </body>
 </html>
