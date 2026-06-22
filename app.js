@@ -1,9 +1,11 @@
 /* =============================================
    Di Solle — Lógica Principal do App
+   Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyfQ8OVseDnQgLTgoSoBPNKBA12PBnRP9JtdsU603l-6PIIvcO7eA5NE_zuyK-wmXR7KA/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyhNhUVb7B6oqOKW-jVgnfDSwV3EDpR82WzC4TXA0WlKaqryOkCwYypZNhCzl1vWBW_Gw/exec";
 
+// --- ESTADO GLOBAL ---
 let PRODUTOS = [];
 let CLIENTES = [];
 let SELECIONADOS = {};
@@ -13,6 +15,7 @@ let CODIGO_REPRE = localStorage.getItem('repre_cod') || "";
 let PRODUTO_MODAL_ATIVO = null;
 let BLOQUEIA_SALVAMENTO_CNPJ = false;
 
+// Tabela de prazos e opções de desmembramento
 const SUB_PRAZOS = {
   "9": ["28 DIAS","14/42 DIAS","21/35 DIAS","14/28/42 DIAS"],
   "7": ["35 DIAS","14/56 DIAS","21/49 DIAS","28/42 DIAS","14/35/56 DIAS","21/35/49 DIAS","14/28/42/56 DIAS"],
@@ -21,6 +24,9 @@ const SUB_PRAZOS = {
   "0": ["63 DIAS","35/91 DIAS","35/63/91 DIAS","56/70 DIAS","42/63/84 DIAS","21/49/77/105 DIAS","42/56/70/84 DIAS","35/49/63/77/91 DIAS","28/42/56/70/84/98 DIAS"]
 };
 
+// =============================================
+// INICIALIZAÇÃO
+// =============================================
 window.addEventListener('DOMContentLoaded', () => {
   if (!CODIGO_REPRE) {
     document.getElementById('modal-repre').style.display = 'flex';
@@ -33,6 +39,9 @@ window.addEventListener('DOMContentLoaded', () => {
   carregarDados();
 });
 
+// =============================================
+// REPRESENTANTE
+// =============================================
 function salvarRepre() {
   let val = document.getElementById('repre-codigo').value.trim();
   if (!val) { alert("Digite o código."); return; }
@@ -40,7 +49,7 @@ function salvarRepre() {
   localStorage.setItem('repre_cod', val);
   document.getElementById('modal-repre').style.display = 'none';
   atualizarExibicaoRepre();
-  showToast("Representante salvo!");
+  showToast("Representante saved!");
 }
 
 function atualizarExibicaoRepre() {
@@ -54,6 +63,9 @@ function abrirModalRepre() {
   document.getElementById('modal-repre').classList.add('open');
 }
 
+// =============================================
+// UTILITÁRIOS
+// =============================================
 function showToast(m) {
   const t = document.getElementById('toast');
   t.innerText = m;
@@ -65,6 +77,9 @@ function formatDin(v) {
   return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
+// =============================================
+// DADOS — CARREGAMENTO E SINCRONIZAÇÃO
+// =============================================
 async function carregarDados(force = false) {
   try {
     const r = await fetch(URL_GOOGLE_SCRIPT + (force ? '?atualizar=true' : ''));
@@ -96,6 +111,9 @@ function sincronizarPlanilha() {
   });
 }
 
+// =============================================
+// CATÁLOGO — FILTROS E RENDERIZAÇÃO
+// =============================================
 function filtrar() {
   let b = document.getElementById('busca').value.toLowerCase();
   let promo = document.getElementById('fil-promo').value;
@@ -166,6 +184,9 @@ function renderizar(arr) {
   });
 }
 
+// =============================================
+// MODAL DE PRODUTO
+// =============================================
 function abrirModal(p) {
   PRODUTO_MODAL_ATIVO = p;
   let uf = document.getElementById('uf-d').value;
@@ -229,7 +250,20 @@ function confirmarAddModal() {
   showToast("Item adicionado.");
 }
 
-function limSel() { SELECIONADOS = {}; calcularTudo(); filtrar(); }
+// =============================================
+// CARRINHO E CÁLCULOS
+// =============================================
+function limSel() { 
+  SELECIONADOS = {}; 
+  calcularTudo(); 
+  filtrar(); 
+  // Limpa também os dados cadastrais do cliente conforme solicitado
+  ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
+    let input = document.getElementById('cli-' + f);
+    if (input) input.value = '';
+  });
+}
+
 function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); filtrar(); }
 
 function alterouUF(id) {
@@ -357,6 +391,9 @@ function calcularTudo() {
   document.getElementById('btn-baixar-m').disabled = contItens === 0;
 }
 
+// =============================================
+// CLIENTES — BUSCA E CADASTRO
+// =============================================
 function verificarNovoClienteExistente(cnpj) {
   if (!cnpj) return;
   let cLimpo = cnpj.replace(/\D/g, '').trim();
@@ -444,7 +481,7 @@ function salvarNovoCliente() {
 
 function abrirModalBuscarCliente() {
   document.getElementById('input-busca-cliente').value = '';
-  document.getElementById('lista-busca-clientes').innerHTML = '<div class="vazio">Digite parâmetros para buscar...</div>';
+  document.getElementById('lista-busca-clientes').innerHTML = '<div class="vazio">Digite CNPJ, Fantasia ou Cidade para pesquisar...</div>';
   document.getElementById('modal-buscar-cliente').style.display = 'flex';
   document.getElementById('modal-buscar-cliente').classList.add('open');
 }
@@ -454,45 +491,52 @@ function fecharModalBuscarCliente() {
   setTimeout(() => document.getElementById('modal-buscar-cliente').style.display = 'none', 300);
 }
 
-// NOVA FUNÇÃO: Executa a busca somente no clique do botão
-function executarBuscaClienteBtn() {
-  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
-  let container = document.getElementById('lista-busca-clientes');
-  
-  if (!v) { container.innerHTML = '<div class="vazio">Digite CNPJ, Fantasia ou Cidade para pesquisar...</div>'; return; }
-  
-  container.innerHTML = '<div class="vazio"><div class="modal-spin" style="margin:0 auto;display:block;"></div><div style="margin-top:10px;">Buscando cliente...</div></div>';
-  
-  // Delay simula tempo de carregamento e aplica o filtro
-  setTimeout(() => {
-    let filtrados = CLIENTES.filter(c =>
-      (c.cnpj || '').toLowerCase().includes(v) ||
-      (c.fantasia || '').toLowerCase().includes(v) ||
-      (c.razao || '').toLowerCase().includes(v) ||
-      (c.municipio || '').toLowerCase().includes(v)
-    );
-
-    container.innerHTML = '';
-    if (filtrados.length === 0) { container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>'; return; }
-
-    filtrados.forEach(c => {
-      let d = document.createElement('div');
-      d.className = 'sel-row';
-      d.style.cursor = 'pointer';
-      d.style.padding = '10px';
-      d.onclick = () => mostrarFichaCompletaCliente(c);
-      d.innerHTML = `<div style="display:flex;flex-direction:column;width:100%;">
-        <span style="font-weight:bold;color:var(--verde-dk);">${c.fantasia || c.razao}</span>
-        <span style="font-size:11px;color:var(--sub);">${c.cnpj} — ${c.municipio || ''}/${c.estado || ''}</span>
-      </div>`;
-      container.appendChild(d);
-    });
-  }, 400); // 400ms delay 
-}
-
 function fecharModalDetalhesCliente() {
   document.getElementById('modal-detalhes-cliente').classList.remove('open');
   setTimeout(() => document.getElementById('modal-detalhes-cliente').style.display = 'none', 300);
+}
+
+// Gatilho controlado por clique para evitar lentidão e exibir tela de carregamento
+function executarBuscaCliente() {
+  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
+  if (!v) { alert("Digite algum parâmetro para pesquisar."); return; }
+
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  setTimeout(() => {
+    filtrarClientesBusca();
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+  }, 300);
+}
+
+function filtrarClientesBusca() {
+  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
+  let container = document.getElementById('lista-busca-clientes');
+  container.innerHTML = '';
+
+  let filtrados = CLIENTES.filter(c =>
+    (c.cnpj || '').toLowerCase().includes(v) ||
+    (c.fantasia || '').toLowerCase().includes(v) ||
+    (c.razao || '').toLowerCase().includes(v) ||
+    (c.municipio || '').toLowerCase().includes(v)
+  );
+
+  if (filtrados.length === 0) { container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>'; return; }
+
+  filtrados.forEach(c => {
+    let d = document.createElement('div');
+    d.className = 'sel-row';
+    d.style.cursor = 'pointer';
+    d.style.padding = '10px';
+    d.onclick = () => mostrarFichaCompletaCliente(c);
+    d.innerHTML = `<div style="display:flex;flex-direction:column;width:100%;">
+      <span style="font-weight:bold;color:var(--verde-dk);">${c.fantasia || c.razao}</span>
+      <span style="font-size:11px;color:var(--sub);">${c.cnpj} — ${c.municipio || ''}/${c.estado || ''}</span>
+    </div>`;
+    container.appendChild(d);
+  });
 }
 
 function mostrarFichaCompletaCliente(c) {
@@ -509,25 +553,39 @@ function mostrarFichaCompletaCliente(c) {
     <div style="margin-bottom:6px;"><b>CEP:</b> ${c.cep || '-'}</div>
   `;
 
-  // OTIMIZAÇÃO: Botão aparece SEMPRE agora
   let btnUsar = document.getElementById('btn-selecionar-cliente-busca');
   btnUsar.style.display = 'block';
+  
+  // Modificado para vincular incondicionalmente os dados ao formulário e fechar as buscas
   btnUsar.onclick = () => {
-    // Preenche todos os campos invisíveis/visíveis no checkout final
-    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
-      document.getElementById('cli-' + f).value = c[f] || '';
+    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email'].forEach(f => {
+      let input = document.getElementById('cli-' + f);
+      if (input) input.value = c[f] || '';
     });
     
-    // Mostra aviso e fecha tudo
-    showToast(`✅ Cliente ${c.fantasia || c.razao} selecionado para o pedido!`);
+    // Atualiza o estado da UF no app automaticamente baseado na UF cadastrada do cliente
+    if(c.estado) {
+      let estadoUpper = c.estado.toUpperCase().trim();
+      let optD = document.querySelector(`#uf-d option[value="${estadoUpper}"]`);
+      if(optD) {
+        document.getElementById('uf-d').value = estadoUpper;
+        document.getElementById('uf-m').value = estadoUpper;
+        calcularTudo();
+      }
+    }
+
     fecharModalDetalhesCliente();
     fecharModalBuscarCliente();
+    showToast("✅ Cliente vinculado! Adicione os itens e finalize.");
   };
 
   document.getElementById('modal-detalhes-cliente').style.display = 'flex';
   document.getElementById('modal-detalhes-cliente').classList.add('open');
 }
 
+// =============================================
+// PDF E ENVIO DE PEDIDOS
+// =============================================
 function abrirFluxoFechamento(t) {
   fecharSheet();
   document.getElementById('modal-cliente').style.display = 'flex';
@@ -540,14 +598,6 @@ function fecharModalCliente() {
 }
 
 function clicouForaCliente(e) { if (e.target === document.getElementById('modal-cliente')) fecharModalCliente(); }
-
-// FUNÇÃO PARA LIMPAR FORMULÁRIO DO CLIENTE
-function limparFormularioCliente() {
-  ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep', 'email', 'obs'].forEach(f => {
-    let el = document.getElementById('cli-' + f);
-    if(el) el.value = '';
-  });
-}
 
 function confirmarSalvamentoPedido() {
   let cnpj = document.getElementById('cli-cnpj').value;
@@ -641,6 +691,9 @@ function acionarPdf(tipo) {
     });
 }
 
+// =============================================
+// UPLOAD DE PDF MANUAL
+// =============================================
 function abrirModalUpload() {
   document.getElementById('modal-upload').style.display = 'flex';
   document.getElementById('modal-upload').classList.add('open');
@@ -684,23 +737,37 @@ function enviarPdfManual() {
   reader.readAsDataURL(file);
 }
 
-// FECHAMENTO COM LIMPEZA FINAL
+// =============================================
+// NAVEGAÇÃO — MODAIS, SHEET E CARRINHO
+// =============================================
 function fecharModalSucesso() {
   document.getElementById('modal-sucesso').classList.remove('open');
   setTimeout(() => document.getElementById('modal-sucesso').style.display = 'none', 300);
-  
-  if (DADOS_PDF_PRONTO && (DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle' || DADOS_PDF_PRONTO.tipoAcao === 'enviar')) { 
-    limSel(); // Limpa itens do carrinho
-    limparFormularioCliente(); // Limpa os dados do cliente
-  }
+  if (DADOS_PDF_PRONTO && DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') { limSel(); }
   fecharSheet();
 }
-
 function clicouForaSucesso(e) { if (e.target === document.getElementById('modal-sucesso')) fecharModalSucesso(); }
+
 function abrirSheet() { document.getElementById('b-sheet').classList.add('open'); document.getElementById('sh-ov').classList.add('open'); }
 function fecharSheet() { document.getElementById('b-sheet').classList.remove('open'); document.getElementById('sh-ov').classList.remove('open'); }
-function abrirCarrinho() { document.getElementById('modal-carrinho').style.display = 'flex'; document.getElementById('modal-carrinho').classList.add('open'); }
-function fecharCarrinho() { document.getElementById('modal-carrinho').classList.remove('open'); setTimeout(() => document.getElementById('modal-carrinho').style.display = 'none', 300); }
+
+function abrirCarrinho() {
+  document.getElementById('modal-carrinho').style.display = 'flex';
+  document.getElementById('modal-carrinho').classList.add('open');
+}
+function fecharCarrinho() {
+  document.getElementById('modal-carrinho').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-carrinho').style.display = 'none', 300);
+}
 function clicouForaCarrinho(e) { if (e.target === document.getElementById('modal-carrinho')) fecharCarrinho(); }
-function abrirModalNovoCliente() { BLOQUEIA_SALVAMENTO_CNPJ = false; document.getElementById('btn-salvar-nc').disabled = false; document.getElementById('modal-novo-cliente').style.display = 'flex'; document.getElementById('modal-novo-cliente').classList.add('open'); }
-function fecharModalNovoCliente() { document.getElementById('modal-novo-cliente').classList.remove('open'); setTimeout(() => document.getElementById('modal-novo-cliente').style.display = 'none', 300); }
+
+function abrirModalNovoCliente() {
+  BLOQUEIA_SALVAMENTO_CNPJ = false;
+  document.getElementById('btn-salvar-nc').disabled = false;
+  document.getElementById('modal-novo-cliente').style.display = 'flex';
+  document.getElementById('modal-novo-cliente').classList.add('open');
+}
+function fecharModalNovoCliente() {
+  document.getElementById('modal-novo-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-novo-cliente').style.display = 'none', 300);
+}
