@@ -331,7 +331,14 @@ function calcularTudo() {
     listaItensPdf.push({
       fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
       valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
-      valorComIpi: valorItemComIpi, valorTotalItem: valorTotalItemDescIpi
+      valorComIpi: valorItemComIpi, 
+      valorTotalItem: valorTotalItemDescIpi,
+      // AJUSTADO: Força formatação com pontuação/separador de milhar pt-BR para a última coluna do PDF
+      valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      // AJUSTADO: Parâmetros para indicar aumento de 50% na foto e quebra/compensação na coluna da descrição
+      fotoLarguraAumento: 1.50,
+      quebraTextoDescricao: true,
+      colunaDescricaoLargura: "menor"
     });
 
     hd.innerHTML += `<div class="sel-row">
@@ -358,13 +365,37 @@ function calcularTudo() {
   else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
 
   let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
+  
+  // AJUSTADO: Novo cálculo do Valor de Produto (subtotal - prazo) solicitado para o bloco final do PDF
+  let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
     tipoAcao: '',
     logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
     codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
     clienteInfo: '', observacoes: '',
-    contas: { subtotal: subtotalProdutos, pctPrazo: prazoBase, valPrazo: valDescPrazo, totalIpi, valorFrete: freteVal > 0 ? freteVal : 0, liquido: totalLiquido }
+    contas: { 
+      subtotal: subtotalProdutos, 
+      pctPrazo: prazoBase, 
+      valPrazo: valDescPrazo, 
+      valorProduto: valorProdutoCalculado, // AJUSTADO: Novo campo estruturado
+      totalIpi, 
+      valorFrete: freteVal > 0 ? freteVal : 0, 
+      liquido: totalLiquido,
+      // AJUSTADO: Versões textuais com pontuações de milhar garantidas para exibição do cabeçalho de totais
+      valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      totalIpiFormatado: totalIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    },
+    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
+    layoutAjustes: {
+      colunaFotoLarguraAumento: 1.50,
+      colunaDescricaoMenor: true,
+      quebraTextoDescricao: true
+    }
   };
 
   const upd = (prefix) => {
@@ -496,7 +527,6 @@ function fecharModalDetalhesCliente() {
   setTimeout(() => document.getElementById('modal-detalhes-cliente').style.display = 'none', 300);
 }
 
-// Gatilho controlado por clique para evitar lentidão e exibir tela de carregamento
 function executarBuscaCliente() {
   let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
   if (!v) { alert("Digite algum parâmetro para pesquisar."); return; }
@@ -556,14 +586,12 @@ function mostrarFichaCompletaCliente(c) {
   let btnUsar = document.getElementById('btn-selecionar-cliente-busca');
   btnUsar.style.display = 'block';
   
-  // Modificado para vincular incondicionalmente os dados ao formulário e fechar as buscas
   btnUsar.onclick = () => {
     ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email'].forEach(f => {
       let input = document.getElementById('cli-' + f);
       if (input) input.value = c[f] || '';
     });
     
-    // Atualiza o estado da UF no app automaticamente baseado na UF cadastrada do cliente
     if(c.estado) {
       let estadoUpper = c.estado.toUpperCase().trim();
       let optD = document.querySelector(`#uf-d option[value="${estadoUpper}"]`);
