@@ -676,8 +676,25 @@ function confirmarSalvamentoPedido() {
       document.getElementById('loading-modal').style.display = 'none';
       if (res.status === 'success') {
         let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
-        let a = document.createElement('a'); a.href = res.base64; a.download = nomeFinal;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        
+        // --- INÍCIO DO AJUSTE CORRETO DO DOWNLOAD (BASE64 -> BLOB) ---
+        let byteChars = atob(res.base64);
+        let byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) { byteNumbers[i] = byteChars.charCodeAt(i); }
+        let blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+        let url = window.URL.createObjectURL(blob);
+        
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = nomeFinal;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 150);
+        // --- FIM DO AJUSTE ---
+
         ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
           document.getElementById(id).classList.add('liberado');
           document.getElementById(id).disabled = false;
@@ -707,8 +724,25 @@ function acionarPdf(tipo) {
       document.getElementById('loading-modal').style.display = 'none';
       if (res.status === 'success') {
         let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
-        let a = document.createElement('a'); a.href = res.base64; a.download = nomeFinal;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        
+        // --- INÍCIO DO AJUSTE CORRETO DO DOWNLOAD (BASE64 -> BLOB) ---
+        let byteChars = atob(res.base64);
+        let byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) { byteNumbers[i] = byteChars.charCodeAt(i); }
+        let blob = new Blob([new Uint8Array(byteNumbers)], { type: 'application/pdf' });
+        let url = window.URL.createObjectURL(blob);
+        
+        let a = document.createElement('a');
+        a.href = url;
+        a.download = nomeFinal;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }, 150);
+        // --- FIM DO AJUSTE ---
+
         document.getElementById('modal-sucesso').style.display = 'flex';
         document.getElementById('modal-sucesso').classList.add('open');
       } else { alert("Erro ao processar operação: " + res.message); }
