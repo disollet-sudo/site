@@ -24,7 +24,7 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 .filtros-inner select,.filtros-inner input[type=number]{padding:5px 8px;border:1px solid var(--borda);border-radius:6px;font-size:12px;background:var(--cinza);outline:none}
 .btn-lim{padding:5px 10px;border:1px solid var(--borda);border-radius:6px;background:var(--branco);font-size:12px;cursor:pointer;color:var(--sub)}
 .btn-lim:hover{border-color:var(--verde);color:var(--verde)}
-.btn-sync{background:#E1F5EE;color:var(--verde-dk);border:1px solid var(--verde);font-weight:700;}
+.btn-sync{background:#E1F5EE;color(--verde-dk);border:1px solid var(--verde);font-weight:700;}
 .btn-sync:hover{background:var(--verde);color:#fff;}
 .top-actions{margin-left:auto; display:flex; align-items:center; gap:12px;}
 .main{max-width:1200px;margin:0 auto;padding:16px 20px;display:grid;grid-template-columns:1fr 350px;gap:16px;align-items:start}
@@ -42,8 +42,6 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 .card-img img.loaded{opacity:1}
 .no-img-icon{font-size:30px;color:#ddd}
 .card-body{padding:10px 12px 12px}
-.card-cod{font-size:11px;font-weight:700;color:var(--verde-dk);margin-bottom:3px}
-.card-desc{font-size:12px;color:var(--texto);font-weight:500;line-height:1.35;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .card-bottom{display:flex;justify-content:space-between;align-items:center}
 .card-preco{font-size:15px;font-weight:800;color:var(--verde-dk)}
 .card-emb{font-size:11px;background:var(--cinza);padding:2px 6px;border-radius:4px;color:var(--sub)}
@@ -104,8 +102,9 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 @keyframes spin{to{transform:rotate(360deg)}}
 .modal-close-btn{position:absolute;top:10px;right:12px;width:30px;height:30px;background:rgba(0,0,0,.35);border:none;border-radius:50%;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center}
 .modal-info{padding:14px 18px;overflow-y:auto}
-.modal-cod{font-size:12px;font-weight:700;color:var(--verde-dk);margin-bottom:3px}
-.modal-desc覆{font-size:15px;font-weight:600;line-height:1.4;margin-bottom:4px}
+.card-cod, .modal-cod{font-size:11px;font-weight:700;color:var(--verde-dk);margin-bottom:3px}
+.card-desc, .modal-desc{font-size:12px;color:var(--texto);font-weight:500;line-height:1.35;margin-bottom:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.modal-desc{font-size:15px;font-weight:600;line-height:1.4;margin-bottom:4px;display:block;-webkit-line-clamp:unset;}
 .modal-preco{font-size:20px;font-weight:800;color:var(--verde-dk);margin-bottom:4px}
 .modal-emb{font-size:12px;color:var(--sub);margin-bottom:14px;background:var(--verde-lt);padding:4px 8px;border-radius:4px;display:inline-block}
 .qty-row{display:flex;align-items:center;margin-bottom:14px}
@@ -149,62 +148,31 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
   </div>
 </div>
 
-<!-- MODAL UPLOAD PDF: Somente o botão de envio para a Di Solle conforme solicitado -->
 <div class="modal" id="modal-upload" onclick="if(event.target===this) fecharModalUpload()">
   <div class="modal-box" style="padding: 24px; max-width: 400px; text-align: center;">
     <h3 style="margin-bottom:16px; color:var(--verde-dk); font-size: 16px;">⬆️ Subir Pedido Manual (PDF)</h3>
     <input type="file" id="file-manual" accept=".pdf" style="margin-bottom: 20px; width:100%; padding:10px; border:1px solid var(--borda); border-radius:8px;">
-    <div style="display:flex; justify-content:center;">
-      <button class="btn prim" onclick="enviarPdfManual()" style="width: 100%;">🚀 Enviar para Di Solle</button>
+    <div style="display:flex; gap:8px; justify-content:center;">
+      <button class="btn" onclick="editarPedidoManual()">✏️ Editar Pedido</button>
+      <button class="btn prim" onclick="enviarPdfManual()">🚀 Enviar para Di Solle</button>
     </div>
     <button class="btn" style="margin-top:12px; margin-bottom:0; background:none; border:none; border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
   </div>
 </div>
 
-<!-- MODAL NOVO CLIENTE: Com as 10 colunas ordenadas idênticas à planilha -->
 <div class="modal" id="modal-novo-cliente" onclick="if(event.target===this) fecharModalNovoCliente()">
   <div class="modal-box" style="padding: 24px; max-width: 400px; max-height: 94vh;">
     <h3 style="margin-bottom:16px; color:var(--verde-dk); font-size: 16px; text-align:center;">➕ Novo Cliente</h3>
     <div class="scroll-form">
-      <div class="field"><label>CNPJ / CPF</label><input type="text" id="nc-cnpj" onblur="verificarNovoClienteExistente(this.value)" placeholder="Digite o CNPJ..."></div>
+      <div class="field"><label>CNPJ / CPF</label><input type="text" id="nc-cnpj" onblur="verificarNovoClienteExistente(this.value)" placeholder="Digite para verificar..."></div>
       <div class="field"><label>Razão Social</label><input type="text" id="nc-razao"></div>
       <div class="field"><label>Nome Fantasia</label><input type="text" id="nc-fantasia"></div>
       <div class="field"><label>Telefone</label><input type="text" id="nc-telefone"></div>
       <div class="field"><label>Endereço</label><input type="text" id="nc-endereco"></div>
-      <div class="field"><label>Estado (UF)</label><input type="text" id="nc-estado" maxlength="2" placeholder="Ex: RS"></div>
-      <div class="field"><label>Bairro</label><input type="text" id="nc-bairro"></div>
-      <div class="field"><label>Município (Cidade)</label><input type="text" id="nc-municipio"></div>
-      <div class="field"><label>Número</label><input type="text" id="nc-numero"></div>
-      <div class="field"><label>CEP</label><input type="text" id="nc-cep"></div>
+      <div class="field"><label>Estado</label><input type="text" id="nc-estado"></div>
     </div>
-    <button class="btn prim" id="btn-salvar-nc" onclick="salvarNovoCliente()">Salvar Cliente</button>
+    <button class="btn prim" onclick="salvarNovoCliente()">Salvar Cliente</button>
     <button class="btn" style="margin-bottom:0;" onclick="fecharModalNovoCliente()">Cancelar</button>
-  </div>
-</div>
-
-<!-- MODAL BUSCAR CLIENTE (TELA INICIAL) -->
-<div class="modal" id="modal-buscar-cliente" onclick="if(event.target===this) fecharModalBuscarCliente()">
-  <div class="modal-box" style="padding: 24px; max-width: 450px; max-height: 90vh;">
-    <h3 style="margin-bottom:12px; color:var(--verde-dk); font-size: 16px; text-align: center;">🔍 Pesquisa Geral de Clientes</h3>
-    <div class="field">
-      <input type="text" id="input-busca-cliente" placeholder="Digite CNPJ, Fantasia ou Cidade..." oninput="filtrarClientesBusca()" style="width:100%; padding:10px; border:1px solid var(--borda); border-radius:8px;">
-    </div>
-    <div id="lista-busca-clientes" style="max-height: 50vh; overflow-y: auto; border: 1px solid var(--borda); border-radius: 8px; background: #fff;">
-      <div class="vazio">Digite parâmetros para buscar...</div>
-    </div>
-    <button class="btn" style="margin-top:12px; margin-bottom:0;" onclick="fecharModalBuscarCliente()">Fechar Janela</button>
-  </div>
-</div>
-
-<!-- MODAL DETALHES COMPLETOS DO CLIENTE SELECIONADO -->
-<div class="modal" id="modal-detalhes-cliente" onclick="if(event.target===this) fecharModalDetalhesCliente()">
-  <div class="modal-box" style="padding: 24px; max-width: 400px; max-height: 90vh;">
-    <h3 style="margin-bottom:16px; color:var(--verde-dk); font-size: 16px; text-align: center;">👤 Ficha Completa do Cliente</h3>
-    <div class="scroll-form" id="conteudo-detalhes-cliente" style="font-size:13px; line-height:1.6; background:#f9f9f9; padding:12px; border-radius:8px; border:1px solid var(--borda);">
-      <!-- Injetado Dinamicamente -->
-    </div>
-    <button class="btn prim" id="btn-selecionar-cliente-busca" style="margin-top:12px; display:none;">Utilizar este Cliente no Carrinho</button>
-    <button class="btn" style="margin-bottom:0;" onclick="fecharModalDetalhesCliente()">Voltar para a Busca</button>
   </div>
 </div>
 
@@ -244,7 +212,6 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
       <span style="display:flex; align-items:center; gap:8px;" id="icons-actions">
         <button class="btn-lim" onclick="abrirModalUpload()" title="Subir Pedido Manual" style="padding:4px 8px; font-size:16px; background:none; border:none;">⬆️</button>
         <button class="btn-lim" onclick="abrirModalNovoCliente()" title="Adicionar Cliente Manualmente" style="padding:4px 8px; font-size:16px; background:none; border:none;">➕</button>
-        <button class="btn-lim" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base" style="padding:4px 8px; font-size:16px; background:none; border:none;">🔍👥</button>
       </span>
       
       <span style="font-size:13px; font-weight:600; color:var(--verde-dk); display:none; align-items:center; gap:6px; background:var(--verde-lt); padding:4px 10px; border-radius:12px;" id="info-repre-box">
@@ -389,21 +356,21 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
   </div>
 </div>
 
-<!-- MODAL CHECKOUT COMPLETO: Todos os novos 10 campos em ordem estrita -->
 <div class="modal" id="modal-cliente" onclick="clicouForaCliente(event)">
   <div class="modal-box" style="padding: 24px; max-width: 400px; height: auto; max-height: 94vh;">
     <h3 style="margin-bottom:12px; color:var(--verde-dk); font-size: 16px; text-align: center;">📋 DADOS DO CLIENTE</h3>
     <div class="scroll-form">
-      <div class="field"><label>CNPJ / CPF</label><input type="text" id="cli-cnpj" placeholder="Digite para buscar e auto preencher..." onblur="buscarClienteAoDigitar(this.value)"></div>
+      <div class="field">
+        <label>CNPJ / CPF</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="cli-cnpj" placeholder="Digite o CNPJ/CPF..." style="flex: 1;">
+          <button type="button" class="btn prim" style="width: auto; margin: 0; padding: 0 14px; height: 38px; font-size: 13px; white-space: nowrap;" onclick="pesquisarCliente()">Pesquisar</button>
+        </div>
+      </div>
       <div class="field"><label>Razão Social</label><input type="text" id="cli-razao" placeholder="Razão Social ou Nome Completo"></div>
-      <div class="field"><label>Nome Fantasia (Opcional)</label><input type="text" id="cli-fantasia" placeholder="Nome Fantasia"></div>
+      <div class="field"><label>Fantasia (Opcional)</label><input type="text" id="cli-fantasia" placeholder="Nome Fantasia"></div>
+      <div class="field"><label>Endereço Completo</label><input type="text" id="cli-endereco" placeholder="Rua, Número, Bairro, Cidade"></div>
       <div class="field"><label>Telefone</label><input type="text" id="cli-telefone" placeholder="(XX) XXXXX-XXXX"></div>
-      <div class="field"><label>Endereço</label><input type="text" id="cli-endereco" placeholder="Rua, Avenida, etc..."></div>
-      <div class="field"><label>Estado</label><input type="text" id="cli-estado" placeholder="Ex: RS"></div>
-      <div class="field"><label>Bairro</label><input type="text" id="cli-bairro" placeholder="Bairro"></div>
-      <div class="field"><label>Município</label><input type="text" id="cli-municipio" placeholder="Cidade"></div>
-      <div class="field"><label>Número</label><input type="text" id="cli-numero" placeholder="Número"></div>
-      <div class="field"><label>CEP</label><input type="text" id="cli-cep" placeholder="00000-000"></div>
       <div class="field"><label>E-mail</label><input type="email" id="cli-email" placeholder="email@cliente.com"></div>
       <div class="field"><label>Observações</label><textarea id="cli-obs" rows="3" placeholder="Informações adicionais do pedido..."></textarea></div>
     </div>
@@ -417,7 +384,7 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 <div class="toast" id="toast"></div>
 
 <script>
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwOVJsy_DlIQWQslCRBrs0ef_bKWZAs_TjEkKEK-Nv_mkonpjLJCWJd6apSZ7-D6ZOZPQ/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbx1opz8cVPaVVp6zD7xIUR-1gxsWGJ1FORx_dkVCd4lgqZpawSQ6avd6fvb8tJAvU43EQ/exec";
 
 let PRODUTOS = [];
 let CLIENTES = []; 
@@ -426,7 +393,6 @@ let DADOS_PDF_PRONTO = null;
 let FRETE_REGRAS = {};
 let CODIGO_REPRE = localStorage.getItem('repre_cod') || "";
 let PRODUTO_MODAL_ATIVO = null;
-let BLOQUEIA_SALVAMENTO_CNPJ = false; // Flag impeditiva local de duplicidade
 
 window.addEventListener('DOMContentLoaded', () => {
   if(!CODIGO_REPRE) {
@@ -463,7 +429,9 @@ function formatDin(v) { return v.toLocaleString('pt-BR',{style:'currency',curren
 
 async function carregarDados(force=false){
   try{
-    const r = await fetch(URL_GOOGLE_SCRIPT + (force?'?atualizar=true':''));
+    // Força desativação do cache de rota do navegador anexando timestamp se force for falso
+    const urlFinal = URL_GOOGLE_SCRIPT + (force ? '?atualizar=true' : '?_cb=' + new Date().getTime());
+    const r = await fetch(urlFinal);
     const d = await r.json();
     PRODUTOS = d.produtos || []; 
     FRETE_REGRAS = d.freteRegras || {};
@@ -485,87 +453,69 @@ function sincronizarPlanilha(){
 function abrirModalUpload() { document.getElementById('modal-upload').style.display='flex'; document.getElementById('modal-upload').classList.add('open'); }
 function fecharModalUpload() { document.getElementById('modal-upload').classList.remove('open'); setTimeout(()=>document.getElementById('modal-upload').style.display='none',300); }
 
-function abrirModalNovoCliente() { 
-  BLOQUEIA_SALVAMENTO_CNPJ = false;
-  document.getElementById('btn-salvar-nc').disabled = false;
-  document.getElementById('modal-novo-cliente').style.display='flex'; 
-  document.getElementById('modal-novo-cliente').classList.add('open'); 
-}
+function abrirModalNovoCliente() { document.getElementById('modal-novo-cliente').style.display='flex'; document.getElementById('modal-novo-cliente').classList.add('open'); }
 function fecharModalNovoCliente() { document.getElementById('modal-novo-cliente').classList.remove('open'); setTimeout(()=>document.getElementById('modal-novo-cliente').style.display='none',300); }
 
-// Verificação imediata ao digitar CNPJ no Cadastro Manual (+)
 function verificarNovoClienteExistente(cnpj) {
   if(!cnpj) return;
-  let cLimpo = cnpj.replace(/\D/g, '').trim();
-  let c = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cLimpo);
+  let c = CLIENTES.find(x => x.cnpj === cnpj);
   if(c) {
-    alert("⚠️ ALERTA IMPEDITIVO: Este CNPJ já existe cadastrado na planilha! Não é permitido criar duplicados.");
+    alert("⚠️ Este cliente já existe na base de dados!");
     document.getElementById('nc-razao').value = c.razao || '';
     document.getElementById('nc-fantasia').value = c.fantasia || '';
-    document.getElementById('nc-telefone').value = c.telefone || '';
     document.getElementById('nc-endereco').value = c.endereco || '';
+    document.getElementById('nc-telefone').value = c.telefone || '';
     document.getElementById('nc-estado').value = c.estado || '';
-    document.getElementById('nc-bairro').value = c.bairro || '';
-    document.getElementById('nc-municipio').value = c.municipio || '';
-    document.getElementById('nc-numero').value = c.numero || '';
-    document.getElementById('nc-cep').value = c.cep || '';
-    BLOQUEIA_SALVAMENTO_CNPJ = true;
-    document.getElementById('btn-salvar-nc').disabled = true; // desabilita botão de salvar
-  } else {
-    BLOQUEIA_SALVAMENTO_CNPJ = false;
-    document.getElementById('btn-salvar-nc').disabled = false;
   }
 }
 
-// Verificação imediata no Checkout do Carrinho
-function buscarClienteAoDigitar(cnpj) {
-  if(!cnpj) return;
-  let cLimpo = cnpj.replace(/\D/g, '').trim();
-  let c = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cLimpo);
-  if(c) {
-    document.getElementById('cli-razao').value = c.razao || '';
-    document.getElementById('cli-fantasia').value = c.fantasia || '';
-    document.getElementById('cli-telefone').value = c.telefone || '';
-    document.getElementById('cli-endereco').value = c.endereco || '';
-    document.getElementById('cli-estado').value = c.estado || '';
-    document.getElementById('cli-bairro').value = c.bairro || '';
-    document.getElementById('cli-municipio').value = c.municipio || '';
-    document.getElementById('cli-numero').value = c.numero || '';
-    document.getElementById('cli-cep').value = c.cep || '';
-    showToast("✅ Dados do cliente preenchidos automaticamente.");
-  } else {
-    if(confirm("❌ Cliente não localizado! Deseja abrir a tela de cadastro para este CNPJ agora?")) {
-      fecharModalCliente();
-      setTimeout(() => {
-        abrirModalNovoCliente();
-        document.getElementById('nc-cnpj').value = cnpj;
-      }, 350);
-    }
-  }
-}
-
-// Salva o cliente validando integridade estrutural
-function salvarNovoCliente() {
-  let cCnpj = document.getElementById('nc-cnpj').value;
-  if(BLOQUEIA_SALVAMENTO_CNPJ || CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cCnpj.replace(/\D/g, ''))) {
-     alert("❌ Operação abortada! CNPJ duplicado na base de dados.");
-     return;
-  }
+// Nova lógica controlada por botão e tela de carregamento para busca estável de clientes
+function pesquisarCliente() {
+  let cnpj = document.getElementById('cli-cnpj').value.trim();
+  if(!cnpj) { alert("Digite um CNPJ ou CPF para pesquisar."); return; }
   
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+  
+  setTimeout(() => {
+    let c = CLIENTES.find(x => x.cnpj === cnpj);
+    
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+    
+    if(c) {
+      document.getElementById('cli-razao').value = c.razao || '';
+      document.getElementById('cli-fantasia').value = c.fantasia || '';
+      document.getElementById('cli-endereco').value = c.endereco || '';
+      document.getElementById('cli-telefone').value = c.telefone || '';
+      showToast("✅ Dados do cliente preenchidos!");
+    } else {
+      if(confirm("❌ Cliente não encontrado na base! Deseja cadastrar este novo cliente agora?")) {
+        fecharModalCliente();
+        setTimeout(() => {
+          abrirModalNovoCliente();
+          document.getElementById('nc-cnpj').value = cnpj;
+        }, 350);
+      }
+    }
+  }, 600);
+}
+
+function salvarNovoCliente() {
   let c = {
-    cnpj: cCnpj,
+    cnpj: document.getElementById('nc-cnpj').value,
     razao: document.getElementById('nc-razao').value,
     fantasia: document.getElementById('nc-fantasia').value,
     telefone: document.getElementById('nc-telefone').value,
     endereco: document.getElementById('nc-endereco').value,
-    estado: document.getElementById('nc-estado').value,
-    bairro: document.getElementById('nc-bairro').value,
-    municipio: document.getElementById('nc-municipio').value,
-    numero: document.getElementById('nc-numero').value,
-    cep: document.getElementById('nc-cep').value
+    estado: document.getElementById('nc-estado').value
   };
   
-  if(!c.cnpj || !c.razao) { alert("Preencha obrigatoriamente CNPJ e Razão Social."); return; }
+  if(!c.cnpj || !c.razao) { alert("Preencha ao menos o CNPJ e a Razão Social."); return; }
+  
+  if(CLIENTES.find(x => x.cnpj === c.cnpj || x.razao === c.razao)) {
+    alert("Cliente já se encontra cadastrado na base."); return;
+  }
 
   document.getElementById('loading-modal').style.display='flex';
   document.getElementById('loading-modal').classList.add('open');
@@ -589,112 +539,13 @@ function salvarNovoCliente() {
         document.getElementById('cli-fantasia').value = c.fantasia;
         document.getElementById('cli-telefone').value = c.telefone;
         document.getElementById('cli-endereco').value = c.endereco;
-        document.getElementById('cli-estado').value = c.estado;
-        document.getElementById('cli-bairro').value = c.bairro;
-        document.getElementById('cli-municipio').value = c.municipio;
-        document.getElementById('cli-numero').value = c.numero;
-        document.getElementById('cli-cep').value = c.cep;
       }
     } else { alert(res.message); }
   }).catch(e=>{
     document.getElementById('loading-modal').classList.remove('open');
     document.getElementById('loading-modal').style.display='none';
-    alert("Erro de conexão.");
+    alert("Erro de conexão com o banco de dados.");
   });
-}
-
-// NOVO FLUXO: FUNÇÕES DE BUSCA DE CLIENTES (POPUP INICIAL)
-function abrirModalBuscarCliente() {
-  document.getElementById('input-busca-cliente').value = '';
-  filtrarClientesBusca();
-  document.getElementById('modal-buscar-cliente').style.display = 'flex';
-  document.getElementById('modal-buscar-cliente').classList.add('open');
-}
-function fecharModalBuscarCliente() {
-  document.getElementById('modal-buscar-cliente').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-buscar-cliente').style.display = 'none', 300);
-}
-function fecharModalDetalhesCliente() {
-  document.getElementById('modal-detalhes-cliente').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-detalhes-cliente').style.display = 'none', 300);
-}
-
-function filtrarClientesBusca() {
-  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
-  let container = document.getElementById('lista-busca-clientes');
-  container.innerHTML = '';
-
-  if (!v) {
-    container.innerHTML = '<div class="vazio">Digite CNPJ, Fantasia ou Cidade para pesquisar...</div>';
-    return;
-  }
-
-  let filtrados = CLIENTES.filter(c => {
-    return (c.cnpj||'').toLowerCase().includes(v) ||
-           (c.fantasia||'').toLowerCase().includes(v) ||
-           (c.razao||'').toLowerCase().includes(v) ||
-           (c.municipio||'').toLowerCase().includes(v);
-  });
-
-  if (filtrados.length === 0) {
-    container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>';
-    return;
-  }
-
-  filtrados.forEach(c => {
-    let d = document.createElement('div');
-    d.className = 'sel-row';
-    d.style.cursor = 'pointer';
-    d.style.padding = '10px';
-    d.onclick = () => mostrarFichaCompletaCliente(c);
-    d.innerHTML = `<div style="display:flex; flex-direction:column; width:100%;">
-      <span style="font-weight:bold; color:var(--verde-dk);">${c.fantasia || c.razao}</span>
-      <span style="font-size:11px; color:var(--sub);">${c.cnpj} — ${c.municipio || ''}/${c.estado || ''}</span>
-    </div>`;
-    container.appendChild(d);
-  });
-}
-
-function mostrarFichaCompletaCliente(c) {
-  let f = document.getElementById('conteudo-detalhes-cliente');
-  f.innerHTML = `
-    <div style="margin-bottom:6px;"><b>CNPJ:</b> ${c.cnpj || '-'}</div>
-    <div style="margin-bottom:6px;"><b>RAZÃO SOCIAL:</b> ${c.razao || '-'}</div>
-    <div style="margin-bottom:6px;"><b>NOME FANTASIA:</b> ${c.fantasia || '-'}</div>
-    <div style="margin-bottom:6px;"><b>TELEFONE:</b> ${c.telefone || '-'}</div>
-    <div style="margin-bottom:6px;"><b>ENDEREÇO:</b> ${c.endereco || '-'}</div>
-    <div style="margin-bottom:6px;"><b>ESTADO:</b> ${c.estado || '-'}</div>
-    <div style="margin-bottom:6px;"><b>BAIRRO:</b> ${c.bairro || '-'}</div>
-    <div style="margin-bottom:6px;"><b>MUNICÍPIO:</b> ${c.municipio || '-'}</div>
-    <div style="margin-bottom:6px;"><b>NÚMERO:</b> ${c.numero || '-'}</div>
-    <div style="margin-bottom:6px;"><b>CEP:</b> ${c.cep || '-'}</div>
-  `;
-
-  let btnUsar = document.getElementById('btn-selecionar-cliente-busca');
-  if(Object.keys(SELECIONADOS).length > 0) {
-    btnUsar.style.display = 'block';
-    btnUsar.onclick = () => {
-      fecharModalDetalhesCliente();
-      fecharModalBuscarCliente();
-      document.getElementById('modal-cliente').style.display = 'flex';
-      document.getElementById('modal-cliente').classList.add('open');
-      document.getElementById('cli-cnpj').value = c.cnpj;
-      document.getElementById('cli-razao').value = c.razao;
-      document.getElementById('cli-fantasia').value = c.fantasia;
-      document.getElementById('cli-telefone').value = c.telefone;
-      document.getElementById('cli-endereco').value = c.endereco;
-      document.getElementById('cli-estado').value = c.estado;
-      document.getElementById('cli-bairro').value = c.bairro;
-      document.getElementById('cli-municipio').value = c.municipio;
-      document.getElementById('cli-numero').value = c.numero;
-      document.getElementById('cli-cep').value = c.cep;
-    };
-  } else {
-    btnUsar.style.display = 'none';
-  }
-
-  document.getElementById('modal-detalhes-cliente').style.display = 'flex';
-  document.getElementById('modal-detalhes-cliente').classList.add('open');
 }
 
 function enviarPdfManual() {
@@ -729,17 +580,21 @@ function enviarPdfManual() {
     }).catch(()=>{ 
       document.getElementById('loading-modal').classList.remove('open');
       document.getElementById('loading-modal').style.display='none';
-      alert("Erro ao enviar."); 
+      alert("Erro de rede ao enviar o arquivo."); 
     });
   };
   reader.readAsDataURL(file);
+}
+
+function editarPedidoManual() {
+  alert("⚠️ Funcionalidade Restrita:\nA extração automática de produtos de um PDF exige mapeamento do layout exato (ex: Document AI OCR). Neste momento, caso precise editar os valores ou quantidade, utilize o fluxo de montagem pelo Catálogo/Carrinho do app.");
 }
 
 function somarBrutoPrevia(){
   let bruto = 0;
   Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto;
-    let precoUnit = p.emPromocao ? (p.precosPromo['M26071'] || 0) : (p.precos['M26071'] || 0);
+    let precoUnit = p.emPromocao ? (p.precosPromo['M26071'] || Object.values(p.precosPromo)[0] || 0) : (p.precos['M26071'] || Object.values(p.precos)[0] || 0);
     bruto += (precoUnit * item.qtd);
   });
   return bruto;
@@ -784,7 +639,10 @@ function filtrar(){
   let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
   
   let f = PRODUTOS.filter(p => {
-    let preco = p.emPromocao ? p.precosPromo['M26071'] : p.precos['M26071'];
+    // Tolerância elástica para ler qualquer tabela base ativa em contingência
+    let preco = p.emPromocao 
+      ? (p.precosPromo['M26071'] || Object.values(p.precosPromo)[0] || 0) 
+      : (p.precos['M26071'] || Object.values(p.precos)[0] || 0);
     if(!preco) return false;
     let mat = (p.codigo||'').toLowerCase().includes(b) || (p.descricao||'').toLowerCase().includes(b) || (p.codigoEan||'').includes(b);
     if(promo==='sim' && !p.emPromocao) mat = false;
@@ -808,7 +666,9 @@ function abrirModal(p){
   document.getElementById('modal-img').src = p.fileId ? `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w600` : '';
   document.getElementById('modal-img').style.display = 'none'; document.getElementById('modal-spin').style.display = 'block';
   document.getElementById('modal-cod').innerText = p.codigo; document.getElementById('modal-desc').innerText = p.descricao;
-  document.getElementById('modal-preco').innerText = formatDin(p.emPromocao ? p.precosPromo[tAtiva] : p.precos[tAtiva]);
+  
+  let precoExibir = p.emPromocao ? (p.precosPromo[tAtiva] || Object.values(p.precosPromo)[0] || 0) : (p.precos[tAtiva] || Object.values(p.precos)[0] || 0);
+  document.getElementById('modal-preco').innerText = formatDin(precoExibir);
   document.getElementById('modal-emb').innerText = `Múltiplo: ${p.qtdEmbalagem} | NCM: ${p.ncm} | IPI: ${p.ipi}%`;
   
   let key = p.codigo.toLowerCase().trim();
@@ -891,7 +751,7 @@ function calcularTudo(){
     let item = SELECIONADOS[c];
     let p = item.produto; let qty = item.qtd;
     
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || Object.values(p.precosPromo)[0] || 0) : (p.precos[tabelaAtiva] || Object.values(p.precos)[0] || 0);
     let totalItemOriginal = precoUnit * qty;
     subtotalProdutos += totalItemOriginal;
     contItens += qty;
@@ -964,23 +824,14 @@ function clicouForaCliente(e){ if(e.target===document.getElementById('modal-clie
 function confirmarSalvamentoPedido() {
   let cnpj = document.getElementById('cli-cnpj').value;
   let razao = document.getElementById('cli-razao').value;
-  if (!cnpj || !razao) { alert("Preencha o CNPJ e a Razão Social para prosseguir."); return; }
+  if (!cnpj || !razao) { alert("Realize a pesquisa do cliente ou digite os campos obrigatórios (CNPJ e Razão Social) antes de avançar."); return; }
 
   let obs = document.getElementById('cli-obs').value.trim();
-  let strCli = `CNPJ/CPF: ${cnpj}\nRazão Social: ${razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`;
+  let strCli = `CNPJ/CPF: ${cnpj}\nRazão Social: ${razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nE-mail: ${document.getElementById('cli-email').value}`;
   
   DADOS_PDF_PRONTO.clienteInfo = strCli;
   DADOS_PDF_PRONTO.observacoes = obs;
   DADOS_PDF_PRONTO.tipoAcao = 'enviar'; 
-
-  // Objeto estruturado injetado para compatibilidade com motores de renderização industrial
-  DADOS_PDF_PRONTO.cliente = {
-    cnpj: cnpj, razao: razao, fantasia: document.getElementById('cli-fantasia').value,
-    telefone: document.getElementById('cli-telefone').value, endereco: document.getElementById('cli-endereco').value,
-    estado: document.getElementById('cli-estado').value, bairro: document.getElementById('cli-bairro').value,
-    municipio: document.getElementById('cli-municipio').value, numero: document.getElementById('cli-numero').value,
-    cep: document.getElementById('cli-cep').value, email: document.getElementById('cli-email').value, obs: obs
-  };
 
   fecharModalCliente();
   document.getElementById('loading-modal').style.display = 'flex'; document.getElementById('loading-modal').classList.add('open');
@@ -1001,10 +852,13 @@ function confirmarSalvamentoPedido() {
   .then(r => r.json())
   .then(res => {
     document.getElementById('loading-modal').classList.remove('open'); document.getElementById('loading-modal').style.display = 'none';
+    
     if(res.status === 'success') {
       let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
       let a = document.createElement('a'); a.href = res.base64; a.download = nomeFinal; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      
       ['btn-disolle-d','btn-disolle-m'].forEach(id => { document.getElementById(id).classList.add('liberado'); document.getElementById(id).disabled = false; });
+      
       document.getElementById('modal-sucesso').style.display = 'flex'; document.getElementById('modal-sucesso').classList.add('open');
     } else { alert("Erro ao processar PDF: " + res.message); }
   })
@@ -1016,11 +870,14 @@ function confirmarSalvamentoPedido() {
 
 function acionarPdf(tipo) {
   if (!DADOS_PDF_PRONTO || DADOS_PDF_PRONTO.itens.length === 0) { alert("Carrinho vazio."); return; }
+  
   DADOS_PDF_PRONTO.tipoAcao = tipo;
   if(tipo === 'baixar' && !DADOS_PDF_PRONTO.clienteInfo){
     DADOS_PDF_PRONTO.clienteInfo = "Download Rápido - Sem dados cadastrais preenchidos";
   }
+
   document.getElementById('loading-modal').style.display = 'flex'; document.getElementById('loading-modal').classList.add('open');
+  
   fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) })
   .then(r => r.json()).then(res => {
     document.getElementById('loading-modal').classList.remove('open'); document.getElementById('loading-modal').style.display = 'none';
@@ -1037,7 +894,11 @@ function acionarPdf(tipo) {
 function fecharModalSucesso() { 
   document.getElementById('modal-sucesso').classList.remove('open'); 
   setTimeout(()=>document.getElementById('modal-sucesso').style.display='none',300); 
-  if (DADOS_PDF_PRONTO && DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') { limSel(); }
+  
+  if (DADOS_PDF_PRONTO && DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') {
+    limSel(); 
+  }
+  
   fecharSheet(); 
 }
 
