@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycby6wZYGMu1I1HPbHtdqOfTbUntgzwoXw1TC1XYk_W7gM3PKvXxWLZ_LoSsJfHAzPlCj_w/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbw8AF6659TeWImHeqYyABrVLMBKUzsdaW98iddbadZALDIGM5KPX9imgWAgMkOX7ahFiA/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -119,8 +119,16 @@ function filtrar() {
   let promo = document.getElementById('fil-promo').value;
   let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
 
+  // Calcula a tabela ativa da mesma forma que o modal e renderizar()
+  let uf = document.getElementById('uf-d').value;
+  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let brutoPrevia = somarBrutoPrevia();
+  let tabelaFiltro = "M26071";
+  if (icmsBase === "7") { tabelaFiltro = brutoPrevia <= 5000 ? "M26071" : "M26072"; }
+  else { tabelaFiltro = brutoPrevia <= 2500 ? "M26121" : "M26122"; }
+
   let f = PRODUTOS.filter(p => {
-    let preco = p.emPromocao ? p.precosPromo['M26071'] : p.precos['M26071'];
+    let preco = p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro];
     if (!preco) return false;
     let mat = (p.codigo || '').toLowerCase().includes(b) ||
               (p.descricao || '').toLowerCase().includes(b) ||
