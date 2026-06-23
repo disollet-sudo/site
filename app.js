@@ -148,10 +148,25 @@ function limFiltros() {
 }
 
 function somarBrutoPrevia() {
-  let bruto = 0;
+  // Determina a tabela correta com base no estado já selecionado
+  let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
+  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  // Primeira passagem: soma com M26071 para saber o volume e definir tabela
+  let brutoInicial = 0;
   Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto;
     let precoUnit = p.emPromocao ? (p.precosPromo['M26071'] || 0) : (p.precos['M26071'] || 0);
+    brutoInicial += (precoUnit * item.qtd);
+  });
+  // Determina tabela definitiva pelo volume
+  let tabela;
+  if (icmsBase === "7") { tabela = brutoInicial <= 5000 ? "M26071" : "M26072"; }
+  else { tabela = brutoInicial <= 2500 ? "M26121" : "M26122"; }
+  // Segunda passagem: soma com a tabela correta para o estado
+  let bruto = 0;
+  Object.values(SELECIONADOS).forEach(item => {
+    let p = item.produto;
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabela] || 0) : (p.precos[tabela] || 0);
     bruto += (precoUnit * item.qtd);
   });
   return bruto;
@@ -254,7 +269,6 @@ function confirmarAddModal() {
   SELECIONADOS[key] = { produto: PRODUTO_MODAL_ATIVO, qtd: v };
   fecharModal();
   calcularTudo();
-  filtrar();
   showToast("Item adicionado.");
 }
 
@@ -264,7 +278,6 @@ function confirmarAddModal() {
 function limSel() { 
   SELECIONADOS = {}; 
   calcularTudo(); 
-  filtrar(); 
   // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
@@ -272,7 +285,7 @@ function limSel() {
   });
 }
 
-function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); filtrar(); }
+function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
 
 function alterouUF(id) {
   let val = document.getElementById(id).value;
@@ -408,7 +421,8 @@ function calcularTudo() {
 
   const upd = (prefix) => {
     document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
-    document.getElementById(prefix + '-bruto-prod').innerText = formatDin(subtotalProdutos);
+    // Subtotal exibe o valor já com desconto do prazo aplicado
+    document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
     document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
     document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
     document.getElementById(prefix + '-ipi-val').innerText = '+ ' + formatDin(totalIpi);
@@ -419,6 +433,8 @@ function calcularTudo() {
     document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
   };
   upd('rd'); upd('rm');
+  // Rerenderiza os cards para atualizar preços conforme tabela/estado
+  filtrar();
 
   let mb = document.getElementById('mb-info');
   mb.innerHTML = contItens === 0 ? 'Selecione produtos' : `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
