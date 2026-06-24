@@ -121,7 +121,7 @@ function filtrar() {
 
   // Calcula a tabela ativa da mesma forma que o modal e renderizar()
   let uf = document.getElementById('uf-d').value;
-  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let brutoPrevia = somarBrutoPrevia();
   let tabelaFiltro = "M26071";
   if (icmsBase === "7") { tabelaFiltro = brutoPrevia <= 5000 ? "M26071" : "M26072"; }
@@ -150,19 +150,20 @@ function limFiltros() {
 function somarBrutoPrevia() {
   // Determina a tabela correta com base no estado já selecionado
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
-  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  // Primeira passagem: soma com M26071 para saber o volume e definir tabela
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  // Usa a tabela base do grupo correto para calcular o volume e decidir o threshold
+  let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let brutoInicial = 0;
   Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto;
-    let precoUnit = p.emPromocao ? (p.precosPromo['M26071'] || 0) : (p.precos['M26071'] || 0);
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaBase] || 0) : (p.precos[tabelaBase] || 0);
     brutoInicial += (precoUnit * item.qtd);
   });
-  // Determina tabela definitiva pelo volume
+  // Determina tabela definitiva pelo volume usando a tabela base correta
   let tabela;
   if (icmsBase === "7") { tabela = brutoInicial <= 5000 ? "M26071" : "M26072"; }
   else { tabela = brutoInicial <= 2500 ? "M26121" : "M26122"; }
-  // Segunda passagem: soma com a tabela correta para o estado
+  // Segunda passagem: soma com a tabela definitiva
   let bruto = 0;
   Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto;
@@ -178,7 +179,7 @@ function renderizar(arr) {
   document.getElementById('cont').innerText = `${arr.length} produtos`;
 
   let uf = document.getElementById('uf-d').value;
-  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let brutoPrevia = somarBrutoPrevia();
   let tabelaCard = "M26071";
 
@@ -213,7 +214,7 @@ function renderizar(arr) {
 function abrirModal(p) {
   PRODUTO_MODAL_ATIVO = p;
   let uf = document.getElementById('uf-d').value;
-  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let brutoPrevia = somarBrutoPrevia();
   let tAtiva = "M26071";
 
@@ -320,7 +321,7 @@ function alterouPrazoBase(idO, idD) {
 
 function calcularTudo() {
   let uf = document.getElementById('uf-d').value;
-  let icmsBase = (["RS", "SC", "PR", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
   let pctPrazo = (100 - prazoBase) / 100;
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
