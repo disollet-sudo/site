@@ -282,45 +282,166 @@ function limSel() {
   });
 }
 
-function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
-
-function alterarQtyCarrinho(cod, direcao) {
-  if (!SELECIONADOS[cod]) return;
-  let p = SELECIONADOS[cod].produto;
-  let m = p.qtdEmbalagem || 1;
-  let novaQty = SELECIONADOS[cod].qtd + (direcao * m);
-  if (novaQty < m) {
-    if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
-      delete SELECIONADOS[cod];
-    } else return;
-  } else {
-    SELECIONADOS[cod].qtd = novaQty;
+// =============================================
+// CARRINHO — RENDERIZAÇÃO INDEPENDENTE
+// =============================================
+function renderizarCarrinho(tabelaAtiva) {
+  // Recalcula tabelaAtiva se não fornecida
+  if (!tabelaAtiva) {
+    let uf = document.getElementById('uf-d').value;
+    let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+    let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+    let pctPrazo = (100 - prazoBase) / 100;
+    let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
+    let limiteTabela = icmsBase === "7" ? 5000 : 2500;
+    let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
+    tabelaAtiva = (liquidoPrevia <= limiteTabela) ? tabelaBase : (icmsBase === "7" ? "M26072" : "M26122");
   }
-  calcularTudo();
-}
 
-function confirmarQtyCarrinho(cod, input, multiplo) {
-  if (!SELECIONADOS[cod]) return;
-  let v = parseInt(input.value) || 0;
-  let m = multiplo || 1;
-  if (v <= 0) {
-    if (confirm(`Remover "${SELECIONADOS[cod].produto.descricao}" do carrinho?`)) {
+  let hd = document.getElementById('lista-d');
+  if (!hd) return;
+
+  let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazo = (100 - prazoBase) / 100;
+
+  // Guarda a posição de scroll antes de limpar
+  let scrollTop = hd.scrollTop;
+  hd.innerHTML = '';
+
+  let chaves = Object.keys(SELECIONADOS);
+  if (chaves.length === 0) {
+    hd.innerHTML = '<div class="vazio" style="padding:36px 20px;font-size:13px;text-align:center;">🛒<br><br>Carrinho vazio</div>';
+    let rh = document.getElementById('cart-header-resumo');
+    if (rh) rh.innerText = 'Nenhum item';
+    return;
+  }
+
+  let totalCx = 0;
+  chaves.forEach(cod => {
+    let item = SELECIONADOS[cod];
+    let p = item.produto, qty = item.qtd;
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
+    let totalItem = precoUnit * qty;
+    totalCx += qty;
+
+    let div = document.createElement('div');
+    div.className = 'cart-item';
+
+    // Miniatura
+    let imgEl = document.createElement('div');
+    imgEl.className = 'cart-item-img';
+    if (p.fileId) {
+      let img = document.createElement('img');
+      img.src = `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w80`;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .3s';
+      img.onload = () => { img.style.opacity = 1; };
+      imgEl.appendChild(img);
+    } else {
+      imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
+    }
+
+    // Info
+    let infoEl = document.createElement('div');
+    infoEl.className = 'cart-item-info';
+    infoEl.innerHTML = `
+      <div class="cart-item-cod">${p.codigo}</div>
+      <div class="cart-item-desc" title="${p.descricao}">${p.descricao}</div>
+      <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
+    `;
+
+    // Controle de quantidade — usando addEventListener, não onclick inline
+    let ctrlEl = document.createElement('div');
+    ctrlEl.className = 'cart-qty-ctrl';
+
+    let btnMenos = document.createElement('button');
+    btnMenos.className = 'cart-qty-btn';
+    btnMenos.textContent = '−';
+    btnMenos.title = 'Diminuir';
+
+    let inputQty = document.createElement('input');
+    inputQty.className = 'cart-qty-input';
+    inputQty.type = 'number';
+    inputQty.value = qty;
+    inputQty.min = p.qtdEmbalagem || 1;
+
+    let btnMais = document.createElement('button');
+    btnMais.className = 'cart-qty-btn';
+    btnMais.textContent = '+';
+    btnMais.title = 'Aumentar';
+
+    let multiplo = p.qtdEmbalagem || 1;
+
+    btnMenos.addEventListener('click', () => {
+      let novaQty = (SELECIONADOS[cod] ? SELECIONADOS[cod].qtd : qty) - multiplo;
+      if (novaQty < multiplo) {
+        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+          delete SELECIONADOS[cod];
+          calcularTudo();
+        }
+      } else {
+        SELECIONADOS[cod].qtd = novaQty;
+        calcularTudo();
+      }
+    });
+
+    btnMais.addEventListener('click', () => {
+      if (SELECIONADOS[cod]) SELECIONADOS[cod].qtd += multiplo;
+      calcularTudo();
+    });
+
+    inputQty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') inputQty.blur();
+    });
+
+    inputQty.addEventListener('blur', () => {
+      if (!SELECIONADOS[cod]) return;
+      let v = parseInt(inputQty.value) || 0;
+      if (v <= 0) {
+        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+          delete SELECIONADOS[cod];
+          calcularTudo();
+        } else {
+          inputQty.value = SELECIONADOS[cod].qtd;
+        }
+        return;
+      }
+      if (v % multiplo !== 0) {
+        v = Math.ceil(v / multiplo) * multiplo;
+        showToast(`Corrigido para ${v} (múltiplo de ${multiplo})`);
+      }
+      SELECIONADOS[cod].qtd = v;
+      calcularTudo();
+    });
+
+    ctrlEl.appendChild(btnMenos);
+    ctrlEl.appendChild(inputQty);
+    ctrlEl.appendChild(btnMais);
+
+    // Botão remover
+    let rmBtn = document.createElement('button');
+    rmBtn.className = 'cart-rm-btn';
+    rmBtn.title = 'Remover';
+    rmBtn.textContent = '✕';
+    rmBtn.addEventListener('click', () => {
       delete SELECIONADOS[cod];
       calcularTudo();
-      return;
-    } else {
-      input.value = SELECIONADOS[cod].qtd;
-      return;
-    }
-  }
-  if (v % m !== 0) {
-    let corrigido = Math.ceil(v / m) * m;
-    showToast(`Corrigido para ${corrigido} (múltiplo de ${m})`);
-    v = corrigido;
-  }
-  SELECIONADOS[cod].qtd = v;
-  calcularTudo();
+    });
+
+    div.appendChild(imgEl);
+    div.appendChild(infoEl);
+    div.appendChild(ctrlEl);
+    div.appendChild(rmBtn);
+    hd.appendChild(div);
+  });
+
+  // Restaura scroll
+  hd.scrollTop = scrollTop;
+
+  let rh = document.getElementById('cart-header-resumo');
+  if (rh) rh.innerText = `${chaves.length} produto${chaves.length > 1 ? 's' : ''} · ${totalCx} cx`;
 }
+
+function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
 
 function alterouUF(id) {
   let val = document.getElementById(id).value;
@@ -379,7 +500,6 @@ function calcularTudo() {
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
   if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
 
-  // 1ª passagem: calcula o total líquido com a tabela BASE para decidir a tabela definitiva
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela = icmsBase === "7" ? 5000 : 2500;
   let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
@@ -390,8 +510,6 @@ function calcularTudo() {
   let subtotalBrutoInicial = somarBrutoPrevia();
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
-  let hd = document.getElementById('lista-d');
-  hd.innerHTML = '';
 
   Object.keys(SELECIONADOS).forEach(c => {
     let item = SELECIONADOS[c];
@@ -410,50 +528,17 @@ function calcularTudo() {
     listaItensPdf.push({
       fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
       valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
-      valorComIpi: valorItemComIpi, 
+      valorComIpi: valorItemComIpi,
       valorTotalItem: valorTotalItemDescIpi,
-      // AJUSTADO: Força formatação com pontuação/separador de milhar pt-BR para a última coluna do PDF
       valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      // AJUSTADO: Parâmetros para indicar aumento de 50% na foto e quebra/compensação na coluna da descrição
       fotoLarguraAumento: 1.50,
       quebraTextoDescricao: true,
       colunaDescricaoLargura: "menor"
     });
-
-    let imgHtml = p.fileId
-      ? `<img src="https://drive.google.com/thumbnail?id=${p.fileId}&sz=w80" style="width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .3s" onload="this.style.opacity=1">`
-      : `<span style="font-size:18px;color:#ddd;">📷</span>`;
-
-    let div = document.createElement('div');
-    div.className = 'cart-item';
-    div.innerHTML = `
-      <div class="cart-item-img">${imgHtml}</div>
-      <div class="cart-item-info">
-        <div class="cart-item-cod">${p.codigo}</div>
-        <div class="cart-item-desc" title="${p.descricao}">${p.descricao}</div>
-        <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItemOriginal)}</b></div>
-      </div>
-      <div class="cart-qty-ctrl">
-        <button class="cart-qty-btn" onclick="alterarQtyCarrinho('${c}', -1)">−</button>
-        <input class="cart-qty-input" type="number" value="${qty}" min="${p.qtdEmbalagem || 1}"
-          onblur="confirmarQtyCarrinho('${c}', this, ${p.qtdEmbalagem || 1})"
-          onkeydown="if(event.key==='Enter'){this.blur();}">
-        <button class="cart-qty-btn" onclick="alterarQtyCarrinho('${c}', 1)">+</button>
-      </div>
-      <button class="cart-rm-btn" onclick="rmItem('${c}')" title="Remover">✕</button>
-    `;
-    hd.appendChild(div);
   });
 
-  if (contItens === 0) {
-    hd.innerHTML = '<div class="vazio" style="padding:30px 20px;font-size:13px;">🛒<br><br>Carrinho vazio</div>';
-  }
-
-  let cartHeaderResumo = document.getElementById('cart-header-resumo');
-  if (cartHeaderResumo) {
-    let nProd = Object.keys(SELECIONADOS).length;
-    cartHeaderResumo.innerText = nProd === 0 ? 'Nenhum item' : `${nProd} produto${nProd > 1 ? 's' : ''} · ${contItens} cx`;
-  }
+  // Renderiza o carrinho separadamente
+  renderizarCarrinho(tabelaAtiva);
 
   document.getElementById('badge').innerText = `${contItens} itens`;
   document.getElementById('badge').style.display = contItens > 0 ? 'inline-block' : 'none';
@@ -469,8 +554,6 @@ function calcularTudo() {
   else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
 
   let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
-  
-  // AJUSTADO: Novo cálculo do Valor de Produto (subtotal - prazo) solicitado para o bloco final do PDF
   let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
@@ -478,15 +561,14 @@ function calcularTudo() {
     logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
     codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
     clienteInfo: '', observacoes: '',
-    contas: { 
-      subtotal: subtotalProdutos, 
-      pctPrazo: prazoBase, 
-      valPrazo: valDescPrazo, 
-      valorProduto: valorProdutoCalculado, // AJUSTADO: Novo campo estruturado
-      totalIpi, 
-      valorFrete: freteVal > 0 ? freteVal : 0, 
+    contas: {
+      subtotal: subtotalProdutos,
+      pctPrazo: prazoBase,
+      valPrazo: valDescPrazo,
+      valorProduto: valorProdutoCalculado,
+      totalIpi,
+      valorFrete: freteVal > 0 ? freteVal : 0,
       liquido: totalLiquido,
-      // AJUSTADO: Versões textuais com pontuações de milhar garantidas para exibição do cabeçalho de totais
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
