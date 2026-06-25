@@ -813,110 +813,184 @@ function enviarPdfManual() {
 
 // =============================================
 // IMPORTAR PEDIDO VIA PDF (EDITAR PEDIDO)
+// Usa PDF.js localmente — sem API, sem custo
 // =============================================
+
+// Carrega PDF.js sob demanda (só quando precisar)
+function carregarPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    let script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    script.onerror = () => reject(new Error("Falha ao carregar leitor de PDF."));
+    document.head.appendChild(script);
+  });
+}
+
+// Extrai todo o texto do PDF página a página
+async function extrairTextoPdf(file) {
+  let arrayBuffer = await file.arrayBuffer();
+  let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let textoTotal = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    let page = await pdf.getPage(i);
+    let content = await page.getTextContent();
+    // Junta itens de texto com espaço, quebra de página entre páginas
+    let linhas = content.items.map(it => it.str).join(' ');
+    textoTotal += linhas + '\n';
+  }
+  return textoTotal;
+}
+
+// Parseia o texto extraído do PDF di solle para dados estruturados
+function parsearPedidoDiSolle(texto) {
+  let resultado = {
+    cliente: { cnpj:'', razao:'', fantasia:'', telefone:'', endereco:'',
+               estado:'', bairro:'', municipio:'', numero:'', cep:'', email:'', obs:'' },
+    prazo: '',
+    estado_destino: '',
+    itens: []
+  };
+
+  // Normaliza espaços múltiplos
+  let t = texto.replace(/\s+/g, ' ');
+
+  // ---- DADOS DO CLIENTE ----
+  let campo = (label, proxLabels) => {
+    let pattern = label + '\\s*[:\\-]?\\s*([\\s\\S]+?)(?=' + proxLabels + '|$)';
+    let m = t.match(new RegExp(pattern, 'i'));
+    return m ? m[1].trim().replace(/\s+/g, ' ') : '';
+  };
+
+  // CNPJ
+  let cnpjM = t.match(/CNPJ[\s\/CPF]*[:\-]?\s*([\d.\-\/]+)/i);
+  resultado.cliente.cnpj = cnpjM ? cnpjM[1].trim() : '';
+
+  // Razão Social
+  let razaoM = t.match(/Raz[aã]o Social[:\-]?\s*([^\n]+?)(?=Fantasia|Telefone|Endere)/i);
+  resultado.cliente.razao = razaoM ? razaoM[1].trim() : '';
+
+  // Fantasia
+  let fantasiaM = t.match(/Fantasia[:\-]?\s*([^\n]+?)(?=Telefone|Endere|CNPJ|$)/i);
+  resultado.cliente.fantasia = fantasiaM ? fantasiaM[1].trim() : '';
+
+  // Telefone
+  let telM = t.match(/Telefone[:\-]?\s*([\d\s\(\)\-]+?)(?=Endere|Estado|Bairro|CEP|$)/i);
+  resultado.cliente.telefone = telM ? telM[1].trim() : '';
+
+  // Endereço
+  let endM = t.match(/Endere[çc]o[:\-]?\s*([^\n]+?)(?=Estado|Bairro|Munic|N[uú]mero|CEP|$)/i);
+  resultado.cliente.endereco = endM ? endM[1].trim() : '';
+
+  // Estado
+  let estadoM = t.match(/Estado[:\-]?\s*([A-Z]{2})(?:\s|$)/i);
+  resultado.cliente.estado = estadoM ? estadoM[1].toUpperCase() : '';
+
+  // Bairro
+  let bairroM = t.match(/Bairro[:\-]?\s*([^\n]+?)(?=Munic|N[uú]mero|CEP|Estado|$)/i);
+  resultado.cliente.bairro = bairroM ? bairroM[1].trim() : '';
+
+  // Município
+  let munM = t.match(/Munic[íi]pio[:\-]?\s*([^\n]+?)(?=N[uú]mero|CEP|E-mail|Observa|Estado|$)/i);
+  resultado.cliente.municipio = munM ? munM[1].trim() : '';
+
+  // Número
+  let numM = t.match(/N[uú]mero[:\-]?\s*(\d+)/i);
+  resultado.cliente.numero = numM ? numM[1].trim() : '';
+
+  // CEP
+  let cepM = t.match(/CEP[:\-]?\s*([\d\-]+)/i);
+  resultado.cliente.cep = cepM ? cepM[1].trim() : '';
+
+  // Email
+  let emailM = t.match(/E-?mail[:\-]?\s*([\w.\-+]+@[\w.\-]+)/i);
+  resultado.cliente.email = emailM ? emailM[1].trim() : '';
+
+  // Observações
+  let obsM = t.match(/Observa[çc][oõ]es[:\-]?\s*([^\n]+?)(?=Estado Destino|Prazo|Foto|$)/i);
+  resultado.cliente.obs = obsM ? obsM[1].trim() : '';
+
+  // ---- ESTADO DESTINO e PRAZO ----
+  let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
+  resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
+
+  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|]+?)(?:\s*\||$)/i);
+  resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
+
+  // ---- ITENS ----
+  // Padrão de linha: CODIGO  DESCRICAO  QTD  ...
+  // Código Di Solle: 13 dígitos numéricos
+  let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z][^\d]+?)\s+(\d{1,4})\s+R\$/g)];
+  
+  if (linhasItens.length === 0) {
+    // Fallback: tenta 10+ dígitos seguidos de texto e quantidade
+    linhasItens = [...t.matchAll(/(\d{10,15})\s+\S[^\d]{5,80?}\s+(\d{1,4})\s+R\$/g)];
+    linhasItens.forEach(m => {
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[2]) });
+    });
+  } else {
+    linhasItens.forEach(m => {
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
+    });
+  }
+
+  // Remove duplicatas (mesmo código, soma qtds se aparecer mais de uma vez)
+  let itensMapa = {};
+  resultado.itens.forEach(it => {
+    if (itensMapa[it.codigo]) {
+      itensMapa[it.codigo].qtd += it.qtd;
+    } else {
+      itensMapa[it.codigo] = { ...it };
+    }
+  });
+  resultado.itens = Object.values(itensMapa);
+
+  return resultado;
+}
+
 async function importarPedidoPdf() {
   let fileInput = document.getElementById('file-manual');
   if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
   let file = fileInput.files[0];
 
   fecharModalUpload();
-
   document.getElementById('modal-importando').style.display = 'flex';
   document.getElementById('modal-importando').classList.add('open');
 
   try {
-    // Lê o PDF como base64
-    let base64 = await new Promise((res, rej) => {
-      let r = new FileReader();
-      r.onload = () => res(r.result.split(',')[1]);
-      r.onerror = () => rej(new Error("Falha ao ler o arquivo."));
-      r.readAsDataURL(file);
-    });
+    document.getElementById('import-status-txt').innerText = 'Carregando leitor de PDF...';
+    await carregarPdfJs();
 
-    document.getElementById('import-status-txt').innerText = 'Enviando para análise com IA...';
+    document.getElementById('import-status-txt').innerText = 'Lendo o arquivo PDF...';
+    let texto = await extrairTextoPdf(file);
 
-    // Chama a API Claude para extrair os dados do PDF
-    let prompt = `Você é um assistente que extrai dados de pedidos de compra em PDF.
-Analise o PDF fornecido e retorne APENAS um JSON válido (sem markdown, sem texto extra) com esta estrutura:
-{
-  "cliente": {
-    "cnpj": "",
-    "razao": "",
-    "fantasia": "",
-    "telefone": "",
-    "endereco": "",
-    "estado": "",
-    "bairro": "",
-    "municipio": "",
-    "numero": "",
-    "cep": "",
-    "email": "",
-    "obs": ""
-  },
-  "prazo": "",
-  "estado_destino": "",
-  "itens": [
-    { "codigo": "1403020004000", "qtd": 36 }
-  ]
-}
-Regras:
-- "codigo" deve ser o código/referência do produto exatamente como aparece no PDF (ex: 1403020004000).
-- "qtd" deve ser o número inteiro da quantidade.
-- "prazo" deve ser a string do prazo exatamente como aparece (ex: "35/49/63/77/91 DIAS").
-- "estado_destino" é a UF de destino (2 letras, ex: "MT").
-- "obs" são as observações do pedido.
-- Extraia TODOS os itens da tabela do pedido.
-- Retorne SOMENTE o JSON, sem nenhum texto antes ou depois.`;
+    document.getElementById('import-status-txt').innerText = 'Identificando cliente e itens...';
+    let pedido = parsearPedidoDiSolle(texto);
 
-    let response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 4000,
-        messages: [{
-          role: "user",
-          content: [
-            {
-              type: "document",
-              source: { type: "base64", media_type: "application/pdf", data: base64 }
-            },
-            { type: "text", text: prompt }
-          ]
-        }]
-      })
-    });
-
-    let data = await response.json();
-    let textoResposta = data.content && data.content[0] ? data.content[0].text : '';
-    
-    // Remove possíveis marcadores markdown
-    textoResposta = textoResposta.replace(/```json|```/g, '').trim();
-
-    let pedidoImportado;
-    try {
-      pedidoImportado = JSON.parse(textoResposta);
-    } catch (e) {
-      throw new Error("Não foi possível interpretar a resposta da IA. Verifique se o PDF é um pedido Di Solle válido.");
+    if (pedido.itens.length === 0) {
+      throw new Error("Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
     }
-
-    document.getElementById('import-status-txt').innerText = 'Carregando itens no catálogo...';
 
     // Aguarda produtos carregados
     if (PRODUTOS.length === 0) {
+      document.getElementById('import-status-txt').innerText = 'Carregando catálogo...';
       await carregarDados();
     }
 
-    // Preenche dados do cliente nos campos
-    let cli = pedidoImportado.cliente || {};
-    let camposCli = ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'];
-    camposCli.forEach(f => {
+    // Preenche campos do cliente
+    let cli = pedido.cliente;
+    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
       let el = document.getElementById('cli-' + f);
       if (el && cli[f]) el.value = cli[f];
     });
 
     // Define UF destino
-    let uf = (pedidoImportado.estado_destino || cli.estado || '').toUpperCase().trim();
+    let uf = (pedido.estado_destino || cli.estado || '').toUpperCase().trim();
     if (uf) {
       let optD = document.querySelector(`#uf-d option[value="${uf}"]`);
       if (optD) {
@@ -925,95 +999,77 @@ Regras:
       }
     }
 
-    // Tenta configurar o prazo
-    let prazoStr = (pedidoImportado.prazo || '').trim().toUpperCase();
+    // Configura prazo
+    let prazoStr = pedido.prazo;
     let avisos = [];
+    let prazoEncontrado = false;
+
     if (prazoStr) {
-      // Tenta encontrar o prazo base pelo texto
-      let prazoEncontrado = false;
+      // Procura em SUB_PRAZOS
       for (let [val, opcoes] of Object.entries(SUB_PRAZOS)) {
         if (opcoes.includes(prazoStr)) {
           document.getElementById('prazo-d').value = val;
           document.getElementById('prazo-m').value = val;
           alterouPrazoBase('prazo-d', 'prazo-m');
-          // Aguarda o DOM atualizar e seleciona o subprazo
           setTimeout(() => {
-            let sd = document.getElementById('subprazo-d');
-            let sm = document.getElementById('subprazo-m');
-            if (sd) {
-              for (let opt of sd.options) {
-                if (opt.value === prazoStr) { sd.value = prazoStr; break; }
-              }
-            }
-            if (sm) {
-              for (let opt of sm.options) {
-                if (opt.value === prazoStr) { sm.value = prazoStr; break; }
-              }
-            }
-          }, 100);
+            ['subprazo-d','subprazo-m'].forEach(id => {
+              let sel = document.getElementById(id);
+              if (sel) for (let opt of sel.options) { if (opt.value === prazoStr) { sel.value = prazoStr; break; } }
+            });
+          }, 150);
           prazoEncontrado = true;
           break;
         }
       }
-      // Tenta prazo simples (ex: "63 DIAS" → valor "0")
+      // Prazo simples
       if (!prazoEncontrado) {
-        const mapeamentoPrazo = {
-          "28 DIAS": "9", "35 DIAS": "7", "42 DIAS": "5", "56 DIAS": "2", "63 DIAS": "0",
-          "ANTECIPADO": "14"
-        };
-        if (mapeamentoPrazo[prazoStr]) {
-          document.getElementById('prazo-d').value = mapeamentoPrazo[prazoStr];
-          document.getElementById('prazo-m').value = mapeamentoPrazo[prazoStr];
+        const MAP = { "28 DIAS":"9","35 DIAS":"7","42 DIAS":"5","56 DIAS":"2","63 DIAS":"0","ANTECIPADO":"14" };
+        if (MAP[prazoStr]) {
+          document.getElementById('prazo-d').value = MAP[prazoStr];
+          document.getElementById('prazo-m').value = MAP[prazoStr];
+          alterouPrazoBase('prazo-d', 'prazo-m');
           prazoEncontrado = true;
         }
       }
       if (!prazoEncontrado) {
-        avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente. Selecione manualmente.`);
+        avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente — selecione manualmente.`);
       }
     }
 
-    // Limpa seleção atual
+    // Importa itens para SELECIONADOS
     SELECIONADOS = {};
-
-    // Importa itens
     let itensImportados = 0;
     let itensFaltantes = [];
 
-    (pedidoImportado.itens || []).forEach(item => {
-      let codBusca = String(item.codigo || '').trim().toLowerCase();
-      // Tenta encontrar por código exato
-      let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBusca);
-      // Se não achar, tenta sem zeros à esquerda
-      if (!prod) {
-        prod = PRODUTOS.find(p => p.codigo.replace(/^0+/, '') === codBusca.replace(/^0+/, ''));
-      }
+    pedido.itens.forEach(item => {
+      let codBusca = String(item.codigo).trim().toLowerCase();
+      let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBusca)
+               || PRODUTOS.find(p => p.codigo.replace(/^0+/,'') === codBusca.replace(/^0+/,''));
 
       if (prod) {
         let key = prod.codigo.toLowerCase().trim();
         let qtdMin = prod.qtdEmbalagem || 1;
         let qtd = parseInt(item.qtd) || qtdMin;
-        // Garante múltiplo correto
         if (qtd % qtdMin !== 0) qtd = Math.ceil(qtd / qtdMin) * qtdMin;
-        SELECIONADOS[key] = { produto: prod, qtd: qtd };
+        SELECIONADOS[key] = { produto: prod, qtd };
         itensImportados++;
       } else {
         itensFaltantes.push(item.codigo);
       }
     });
 
-    // Atualiza totais e grid
     calcularTudo();
 
     document.getElementById('modal-importando').classList.remove('open');
     document.getElementById('modal-importando').style.display = 'none';
     fileInput.value = '';
 
-    // Monta mensagem de resumo
-    let resumoTxt = `${itensImportados} item(ns) carregado(s) no carrinho com sucesso.\nCliente: ${cli.razao || '-'}\nPrazo: ${prazoStr || '-'}`;
     if (itensFaltantes.length > 0) {
-      avisos.push(`⚠️ ${itensFaltantes.length} item(ns) não encontrado(s) no catálogo atual: ${itensFaltantes.join(', ')}`);
+      avisos.push(`⚠️ ${itensFaltantes.length} item(ns) não encontrado(s) no catálogo: ${itensFaltantes.join(', ')}`);
     }
-    document.getElementById('import-resumo-txt').innerText = resumoTxt;
+
+    document.getElementById('import-resumo-txt').innerText =
+      `${itensImportados} item(ns) carregado(s) com sucesso.\nCliente: ${cli.razao || '-'}\nPrazo: ${prazoStr || '-'}`;
 
     let avisosEl = document.getElementById('import-avisos');
     if (avisos.length > 0) {
