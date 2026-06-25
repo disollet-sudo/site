@@ -284,6 +284,44 @@ function limSel() {
 
 function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
 
+function alterarQtyCarrinho(cod, direcao) {
+  if (!SELECIONADOS[cod]) return;
+  let p = SELECIONADOS[cod].produto;
+  let m = p.qtdEmbalagem || 1;
+  let novaQty = SELECIONADOS[cod].qtd + (direcao * m);
+  if (novaQty < m) {
+    if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+      delete SELECIONADOS[cod];
+    } else return;
+  } else {
+    SELECIONADOS[cod].qtd = novaQty;
+  }
+  calcularTudo();
+}
+
+function confirmarQtyCarrinho(cod, input, multiplo) {
+  if (!SELECIONADOS[cod]) return;
+  let v = parseInt(input.value) || 0;
+  let m = multiplo || 1;
+  if (v <= 0) {
+    if (confirm(`Remover "${SELECIONADOS[cod].produto.descricao}" do carrinho?`)) {
+      delete SELECIONADOS[cod];
+      calcularTudo();
+      return;
+    } else {
+      input.value = SELECIONADOS[cod].qtd;
+      return;
+    }
+  }
+  if (v % m !== 0) {
+    let corrigido = Math.ceil(v / m) * m;
+    showToast(`Corrigido para ${corrigido} (múltiplo de ${m})`);
+    v = corrigido;
+  }
+  SELECIONADOS[cod].qtd = v;
+  calcularTudo();
+}
+
 function alterouUF(id) {
   let val = document.getElementById(id).value;
   document.getElementById('uf-d').value = val;
@@ -382,15 +420,40 @@ function calcularTudo() {
       colunaDescricaoLargura: "menor"
     });
 
-    hd.innerHTML += `<div class="sel-row">
-      <div class="sel-cod">${p.codigo}</div>
-      <div class="sel-desc">${p.descricao}</div>
-      <div class="sel-qty-wrap">${qty} cx</div>
-      <div class="sel-rm" onclick="rmItem('${c}')">✕</div>
-    </div>`;
+    let imgHtml = p.fileId
+      ? `<img src="https://drive.google.com/thumbnail?id=${p.fileId}&sz=w80" style="width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .3s" onload="this.style.opacity=1">`
+      : `<span style="font-size:18px;color:#ddd;">📷</span>`;
+
+    let div = document.createElement('div');
+    div.className = 'cart-item';
+    div.innerHTML = `
+      <div class="cart-item-img">${imgHtml}</div>
+      <div class="cart-item-info">
+        <div class="cart-item-cod">${p.codigo}</div>
+        <div class="cart-item-desc" title="${p.descricao}">${p.descricao}</div>
+        <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItemOriginal)}</b></div>
+      </div>
+      <div class="cart-qty-ctrl">
+        <button class="cart-qty-btn" onclick="alterarQtyCarrinho('${c}', -1)">−</button>
+        <input class="cart-qty-input" type="number" value="${qty}" min="${p.qtdEmbalagem || 1}"
+          onblur="confirmarQtyCarrinho('${c}', this, ${p.qtdEmbalagem || 1})"
+          onkeydown="if(event.key==='Enter'){this.blur();}">
+        <button class="cart-qty-btn" onclick="alterarQtyCarrinho('${c}', 1)">+</button>
+      </div>
+      <button class="cart-rm-btn" onclick="rmItem('${c}')" title="Remover">✕</button>
+    `;
+    hd.appendChild(div);
   });
 
-  if (contItens === 0) { hd.innerHTML = '<div class="vazio">Carrinho vazio</div>'; }
+  if (contItens === 0) {
+    hd.innerHTML = '<div class="vazio" style="padding:30px 20px;font-size:13px;">🛒<br><br>Carrinho vazio</div>';
+  }
+
+  let cartHeaderResumo = document.getElementById('cart-header-resumo');
+  if (cartHeaderResumo) {
+    let nProd = Object.keys(SELECIONADOS).length;
+    cartHeaderResumo.innerText = nProd === 0 ? 'Nenhum item' : `${nProd} produto${nProd > 1 ? 's' : ''} · ${contItens} cx`;
+  }
 
   document.getElementById('badge').innerText = `${contItens} itens`;
   document.getElementById('badge').style.display = contItens > 0 ? 'inline-block' : 'none';
