@@ -122,10 +122,14 @@ function filtrar() {
   // Calcula a tabela ativa da mesma forma que o modal e renderizar()
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  let brutoPrevia = somarBrutoPrevia();
-  let tabelaFiltro = "M26071";
-  if (icmsBase === "7") { tabelaFiltro = brutoPrevia <= 5000 ? "M26071" : "M26072"; }
-  else { tabelaFiltro = brutoPrevia <= 2500 ? "M26121" : "M26122"; }
+  let prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazo2 = (100 - prazoBase2) / 100;
+  let tabelaBase2 = icmsBase === "7" ? "M26071" : "M26121";
+  let limiteTabela2 = icmsBase === "7" ? 5000 : 2500;
+  let liquidoPrevia2 = calcularTotalLiquidoComTabela(tabelaBase2, pctPrazo2, uf);
+  let tabelaFiltro = (liquidoPrevia2 <= limiteTabela2)
+    ? tabelaBase2
+    : (icmsBase === "7" ? "M26072" : "M26122");
 
   let f = PRODUTOS.filter(p => {
     let preco = p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro];
@@ -148,26 +152,15 @@ function limFiltros() {
 }
 
 function somarBrutoPrevia() {
-  // Determina a tabela correta com base no estado já selecionado
+  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
+  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  // Usa a tabela base do grupo correto para calcular o volume e decidir o threshold
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
-  let brutoInicial = 0;
-  Object.values(SELECIONADOS).forEach(item => {
-    let p = item.produto;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaBase] || 0) : (p.precos[tabelaBase] || 0);
-    brutoInicial += (precoUnit * item.qtd);
-  });
-  // Determina tabela definitiva pelo volume usando a tabela base correta
-  let tabela;
-  if (icmsBase === "7") { tabela = brutoInicial <= 5000 ? "M26071" : "M26072"; }
-  else { tabela = brutoInicial <= 2500 ? "M26121" : "M26122"; }
-  // Segunda passagem: soma com a tabela definitiva
   let bruto = 0;
   Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabela] || 0) : (p.precos[tabela] || 0);
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaBase] || 0) : (p.precos[tabelaBase] || 0);
     bruto += (precoUnit * item.qtd);
   });
   return bruto;
@@ -180,11 +173,14 @@ function renderizar(arr) {
 
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  let brutoPrevia = somarBrutoPrevia();
-  let tabelaCard = "M26071";
-
-  if (icmsBase === "7") { tabelaCard = brutoPrevia <= 5000 ? "M26071" : "M26072"; }
-  else { tabelaCard = brutoPrevia <= 2500 ? "M26121" : "M26122"; }
+  let prazoBaseR = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazoR = (100 - prazoBaseR) / 100;
+  let tabelaBaseR = icmsBase === "7" ? "M26071" : "M26121";
+  let limiteTabelaR = icmsBase === "7" ? 5000 : 2500;
+  let liquidoPreviaR = calcularTotalLiquidoComTabela(tabelaBaseR, pctPrazoR, uf);
+  let tabelaCard = (liquidoPreviaR <= limiteTabelaR)
+    ? tabelaBaseR
+    : (icmsBase === "7" ? "M26072" : "M26122");
 
   arr.forEach(p => {
     let pFinal = p.emPromocao ? p.precosPromo[tabelaCard] : p.precos[tabelaCard];
@@ -319,6 +315,24 @@ function alterouPrazoBase(idO, idD) {
   calcularTudo();
 }
 
+function calcularTotalLiquidoComTabela(tabela, pctPrazo, uf) {
+  let subtotal = 0, totalIpi = 0;
+  Object.values(SELECIONADOS).forEach(item => {
+    let p = item.produto, qty = item.qtd;
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabela] || 0) : (p.precos[tabela] || 0);
+    subtotal += precoUnit * qty;
+    let valorComDesc = precoUnit * pctPrazo;
+    totalIpi += valorComDesc * (p.ipi / 100) * qty;
+  });
+  let valDesc = subtotal - (subtotal * pctPrazo);
+  let liquido = (subtotal - valDesc) + totalIpi;
+  let configFrete = FRETE_REGRAS[uf] || null;
+  if (configFrete && subtotal >= configFrete.pedidoMinimo && subtotal < configFrete.gratis) {
+    liquido += configFrete.intervalo;
+  }
+  return liquido;
+}
+
 function calcularTudo() {
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
@@ -327,10 +341,15 @@ function calcularTudo() {
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
   if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
 
+  // 1ª passagem: calcula o total líquido com a tabela BASE para decidir a tabela definitiva
+  let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
+  let limiteTabela = icmsBase === "7" ? 5000 : 2500;
+  let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
+  let tabelaAtiva = (liquidoPrevia <= limiteTabela)
+    ? tabelaBase
+    : (icmsBase === "7" ? "M26072" : "M26122");
+
   let subtotalBrutoInicial = somarBrutoPrevia();
-  let tabelaAtiva = "M26071";
-  if (icmsBase === "7") { tabelaAtiva = subtotalBrutoInicial <= 5000 ? "M26071" : "M26072"; }
-  else { tabelaAtiva = subtotalBrutoInicial <= 2500 ? "M26121" : "M26122"; }
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
   let hd = document.getElementById('lista-d');
@@ -790,6 +809,233 @@ function enviarPdfManual() {
     });
   };
   reader.readAsDataURL(file);
+}
+
+// =============================================
+// IMPORTAR PEDIDO VIA PDF (EDITAR PEDIDO)
+// =============================================
+async function importarPedidoPdf() {
+  let fileInput = document.getElementById('file-manual');
+  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
+  let file = fileInput.files[0];
+
+  fecharModalUpload();
+
+  document.getElementById('modal-importando').style.display = 'flex';
+  document.getElementById('modal-importando').classList.add('open');
+
+  try {
+    // Lê o PDF como base64
+    let base64 = await new Promise((res, rej) => {
+      let r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = () => rej(new Error("Falha ao ler o arquivo."));
+      r.readAsDataURL(file);
+    });
+
+    document.getElementById('import-status-txt').innerText = 'Enviando para análise com IA...';
+
+    // Chama a API Claude para extrair os dados do PDF
+    let prompt = `Você é um assistente que extrai dados de pedidos de compra em PDF.
+Analise o PDF fornecido e retorne APENAS um JSON válido (sem markdown, sem texto extra) com esta estrutura:
+{
+  "cliente": {
+    "cnpj": "",
+    "razao": "",
+    "fantasia": "",
+    "telefone": "",
+    "endereco": "",
+    "estado": "",
+    "bairro": "",
+    "municipio": "",
+    "numero": "",
+    "cep": "",
+    "email": "",
+    "obs": ""
+  },
+  "prazo": "",
+  "estado_destino": "",
+  "itens": [
+    { "codigo": "1403020004000", "qtd": 36 }
+  ]
+}
+Regras:
+- "codigo" deve ser o código/referência do produto exatamente como aparece no PDF (ex: 1403020004000).
+- "qtd" deve ser o número inteiro da quantidade.
+- "prazo" deve ser a string do prazo exatamente como aparece (ex: "35/49/63/77/91 DIAS").
+- "estado_destino" é a UF de destino (2 letras, ex: "MT").
+- "obs" são as observações do pedido.
+- Extraia TODOS os itens da tabela do pedido.
+- Retorne SOMENTE o JSON, sem nenhum texto antes ou depois.`;
+
+    let response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 4000,
+        messages: [{
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: base64 }
+            },
+            { type: "text", text: prompt }
+          ]
+        }]
+      })
+    });
+
+    let data = await response.json();
+    let textoResposta = data.content && data.content[0] ? data.content[0].text : '';
+    
+    // Remove possíveis marcadores markdown
+    textoResposta = textoResposta.replace(/```json|```/g, '').trim();
+
+    let pedidoImportado;
+    try {
+      pedidoImportado = JSON.parse(textoResposta);
+    } catch (e) {
+      throw new Error("Não foi possível interpretar a resposta da IA. Verifique se o PDF é um pedido Di Solle válido.");
+    }
+
+    document.getElementById('import-status-txt').innerText = 'Carregando itens no catálogo...';
+
+    // Aguarda produtos carregados
+    if (PRODUTOS.length === 0) {
+      await carregarDados();
+    }
+
+    // Preenche dados do cliente nos campos
+    let cli = pedidoImportado.cliente || {};
+    let camposCli = ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'];
+    camposCli.forEach(f => {
+      let el = document.getElementById('cli-' + f);
+      if (el && cli[f]) el.value = cli[f];
+    });
+
+    // Define UF destino
+    let uf = (pedidoImportado.estado_destino || cli.estado || '').toUpperCase().trim();
+    if (uf) {
+      let optD = document.querySelector(`#uf-d option[value="${uf}"]`);
+      if (optD) {
+        document.getElementById('uf-d').value = uf;
+        document.getElementById('uf-m').value = uf;
+      }
+    }
+
+    // Tenta configurar o prazo
+    let prazoStr = (pedidoImportado.prazo || '').trim().toUpperCase();
+    let avisos = [];
+    if (prazoStr) {
+      // Tenta encontrar o prazo base pelo texto
+      let prazoEncontrado = false;
+      for (let [val, opcoes] of Object.entries(SUB_PRAZOS)) {
+        if (opcoes.includes(prazoStr)) {
+          document.getElementById('prazo-d').value = val;
+          document.getElementById('prazo-m').value = val;
+          alterouPrazoBase('prazo-d', 'prazo-m');
+          // Aguarda o DOM atualizar e seleciona o subprazo
+          setTimeout(() => {
+            let sd = document.getElementById('subprazo-d');
+            let sm = document.getElementById('subprazo-m');
+            if (sd) {
+              for (let opt of sd.options) {
+                if (opt.value === prazoStr) { sd.value = prazoStr; break; }
+              }
+            }
+            if (sm) {
+              for (let opt of sm.options) {
+                if (opt.value === prazoStr) { sm.value = prazoStr; break; }
+              }
+            }
+          }, 100);
+          prazoEncontrado = true;
+          break;
+        }
+      }
+      // Tenta prazo simples (ex: "63 DIAS" → valor "0")
+      if (!prazoEncontrado) {
+        const mapeamentoPrazo = {
+          "28 DIAS": "9", "35 DIAS": "7", "42 DIAS": "5", "56 DIAS": "2", "63 DIAS": "0",
+          "ANTECIPADO": "14"
+        };
+        if (mapeamentoPrazo[prazoStr]) {
+          document.getElementById('prazo-d').value = mapeamentoPrazo[prazoStr];
+          document.getElementById('prazo-m').value = mapeamentoPrazo[prazoStr];
+          prazoEncontrado = true;
+        }
+      }
+      if (!prazoEncontrado) {
+        avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente. Selecione manualmente.`);
+      }
+    }
+
+    // Limpa seleção atual
+    SELECIONADOS = {};
+
+    // Importa itens
+    let itensImportados = 0;
+    let itensFaltantes = [];
+
+    (pedidoImportado.itens || []).forEach(item => {
+      let codBusca = String(item.codigo || '').trim().toLowerCase();
+      // Tenta encontrar por código exato
+      let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBusca);
+      // Se não achar, tenta sem zeros à esquerda
+      if (!prod) {
+        prod = PRODUTOS.find(p => p.codigo.replace(/^0+/, '') === codBusca.replace(/^0+/, ''));
+      }
+
+      if (prod) {
+        let key = prod.codigo.toLowerCase().trim();
+        let qtdMin = prod.qtdEmbalagem || 1;
+        let qtd = parseInt(item.qtd) || qtdMin;
+        // Garante múltiplo correto
+        if (qtd % qtdMin !== 0) qtd = Math.ceil(qtd / qtdMin) * qtdMin;
+        SELECIONADOS[key] = { produto: prod, qtd: qtd };
+        itensImportados++;
+      } else {
+        itensFaltantes.push(item.codigo);
+      }
+    });
+
+    // Atualiza totais e grid
+    calcularTudo();
+
+    document.getElementById('modal-importando').classList.remove('open');
+    document.getElementById('modal-importando').style.display = 'none';
+    fileInput.value = '';
+
+    // Monta mensagem de resumo
+    let resumoTxt = `${itensImportados} item(ns) carregado(s) no carrinho com sucesso.\nCliente: ${cli.razao || '-'}\nPrazo: ${prazoStr || '-'}`;
+    if (itensFaltantes.length > 0) {
+      avisos.push(`⚠️ ${itensFaltantes.length} item(ns) não encontrado(s) no catálogo atual: ${itensFaltantes.join(', ')}`);
+    }
+    document.getElementById('import-resumo-txt').innerText = resumoTxt;
+
+    let avisosEl = document.getElementById('import-avisos');
+    if (avisos.length > 0) {
+      avisosEl.innerHTML = avisos.map(a => `<div style="margin-bottom:4px;">${a}</div>`).join('');
+      avisosEl.style.display = 'block';
+    } else {
+      avisosEl.style.display = 'none';
+    }
+
+    document.getElementById('modal-importado').style.display = 'flex';
+    document.getElementById('modal-importado').classList.add('open');
+
+  } catch (err) {
+    document.getElementById('modal-importando').classList.remove('open');
+    document.getElementById('modal-importando').style.display = 'none';
+    alert("Erro ao importar pedido: " + err.message);
+  }
+}
+
+function fecharModalImportado() {
+  document.getElementById('modal-importado').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-importado').style.display = 'none', 300);
 }
 
 // =============================================
