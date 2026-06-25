@@ -352,6 +352,7 @@ function renderizarCarrinho(tabelaAtiva) {
     // Controle de quantidade — usando addEventListener, não onclick inline
     let ctrlEl = document.createElement('div');
     ctrlEl.className = 'cart-qty-ctrl';
+    ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
 
     let btnMenos = document.createElement('button');
     btnMenos.className = 'cart-qty-btn';
@@ -428,9 +429,20 @@ function renderizarCarrinho(tabelaAtiva) {
     });
 
     div.appendChild(imgEl);
-    div.appendChild(infoEl);
-    div.appendChild(ctrlEl);
-    div.appendChild(rmBtn);
+
+    // Wrapper direito: info + controles + botão remover
+    let rightEl = document.createElement('div');
+    rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
+
+    let topRowEl = document.createElement('div');
+    topRowEl.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:6px;';
+    topRowEl.appendChild(infoEl);
+    topRowEl.appendChild(rmBtn);
+
+    rightEl.appendChild(topRowEl);
+    rightEl.appendChild(ctrlEl);
+
+    div.appendChild(rightEl);
     hd.appendChild(div);
   });
 
