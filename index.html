@@ -36,11 +36,36 @@
 </div>
 
 <div class="modal" id="modal-upload" onclick="if(event.target===this) fecharModalUpload()">
-  <div class="modal-box" style="padding:24px;max-width:400px;text-align:center;">
-    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;">⬆️ Subir Pedido Manual (PDF)</h3>
-    <input type="file" id="file-manual" accept=".pdf" style="margin-bottom:20px;width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
-    <button class="btn prim" onclick="enviarPdfManual()" style="width:100%;">🚀 Enviar para Di Solle</button>
+  <div class="modal-box" style="padding:24px;max-width:420px;text-align:center;">
+    <h3 style="margin-bottom:8px;color:var(--verde-dk);font-size:16px;">⬆️ Subir Pedido Manual (PDF)</h3>
+    <p style="font-size:12px;color:var(--sub);margin-bottom:16px;">Selecione um PDF de pedido para enviar à Di Solle ou importar os itens para edição.</p>
+    <input type="file" id="file-manual" accept=".pdf" style="margin-bottom:16px;width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button class="btn prim" onclick="enviarPdfManual()" style="margin:0;">🚀 Enviar para Di Solle</button>
+      <button class="btn" onclick="importarPedidoPdf()" style="margin:0;background:var(--verde-lt);color:var(--verde-dk);border-color:var(--verde);font-weight:700;">✏️ Editar Pedido</button>
+    </div>
     <button class="btn" style="margin-top:12px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
+  </div>
+</div>
+
+<!-- Modal de importação de pedido -->
+<div class="modal" id="modal-importando" style="display:none;">
+  <div class="modal-box" style="padding:30px;max-width:340px;height:auto;text-align:center;background:#fff;">
+    <div class="modal-spin" style="display:block;margin:0 auto 16px;"></div>
+    <div style="font-weight:bold;color:var(--verde-dk);font-size:16px;">Importando Pedido...</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:8px;" id="import-status-txt">Lendo PDF e identificando itens...</div>
+  </div>
+</div>
+
+<!-- Modal de sucesso de importação -->
+<div class="modal" id="modal-importado" onclick="if(event.target===this) fecharModalImportado()">
+  <div class="modal-box" style="padding:30px 20px;max-width:380px;height:auto;text-align:center;position:relative;background:#fff;">
+    <button class="modal-close-btn" onclick="fecharModalImportado()" style="background:#f4f4f2;color:#333;">✕</button>
+    <div style="font-size:46px;margin-bottom:10px;">📦</div>
+    <h3 style="color:var(--verde-dk);font-size:18px;margin-bottom:8px;">Pedido Importado!</h3>
+    <p style="font-size:13px;color:var(--sub);line-height:1.5;" id="import-resumo-txt">Itens carregados com sucesso.</p>
+    <div id="import-avisos" style="margin-top:10px;padding:10px;background:#FFF4E5;border:1px solid #F5A623;border-radius:8px;font-size:11px;color:#8B5E00;text-align:left;display:none;"></div>
+    <button class="btn prim" onclick="fecharModalImportado()" style="margin-top:20px;">✏️ Editar Pedido</button>
   </div>
 </div>
 
