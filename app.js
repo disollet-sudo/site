@@ -867,7 +867,7 @@ function editarPedido() {
 
       fecharModalUpload();
       calcularTudo();
-      mostrarToast("✅ Pedido importado! " + itensEncontrados.length + " iten(s) carregado(s)" + (naoEncontrados.length ? " | " + naoEncontrados.length + " não encontrado(s): " + naoEncontrados.join(', ') : "") + ".");
+      showToast("✅ Pedido importado! " + itensEncontrados.length + " iten(s) carregado(s)" + (naoEncontrados.length ? " | " + naoEncontrados.length + " não encontrado(s): " + naoEncontrados.join(', ') : "") + ".");
 
     }).catch(function(err) {
       if (loadingDiv) loadingDiv.style.display = 'none';
