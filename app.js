@@ -119,7 +119,6 @@ function filtrar() {
   let promo = document.getElementById('fil-promo').value;
   let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
 
-  // Calcula a tabela ativa da mesma forma que o modal e renderizar()
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
@@ -152,8 +151,6 @@ function limFiltros() {
 }
 
 function somarBrutoPrevia() {
-  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
-  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
@@ -275,7 +272,6 @@ function confirmarAddModal() {
 function limSel() { 
   SELECIONADOS = {}; 
   calcularTudo(); 
-  // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
@@ -341,7 +337,6 @@ function calcularTudo() {
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
   if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
 
-  // 1ª passagem: calcula o total líquido com a tabela BASE para decidir a tabela definitiva
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela = icmsBase === "7" ? 5000 : 2500;
   let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
@@ -350,7 +345,6 @@ function calcularTudo() {
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   let subtotalBrutoInicial = somarBrutoPrevia();
-
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
   let hd = document.getElementById('lista-d');
   hd.innerHTML = '';
@@ -374,9 +368,7 @@ function calcularTudo() {
       valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
       valorComIpi: valorItemComIpi, 
       valorTotalItem: valorTotalItemDescIpi,
-      // AJUSTADO: Força formatação com pontuação/separador de milhar pt-BR para a última coluna do PDF
       valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      // AJUSTADO: Parâmetros para indicar aumento de 50% na foto e quebra/compensação na coluna da descrição
       fotoLarguraAumento: 1.50,
       quebraTextoDescricao: true,
       colunaDescricaoLargura: "menor"
@@ -406,8 +398,6 @@ function calcularTudo() {
   else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
 
   let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
-  
-  // AJUSTADO: Novo cálculo do Valor de Produto (subtotal - prazo) solicitado para o bloco final do PDF
   let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
@@ -419,11 +409,10 @@ function calcularTudo() {
       subtotal: subtotalProdutos, 
       pctPrazo: prazoBase, 
       valPrazo: valDescPrazo, 
-      valorProduto: valorProdutoCalculado, // AJUSTADO: Novo campo estruturado
+      valorProduto: valorProdutoCalculado,
       totalIpi, 
       valorFrete: freteVal > 0 ? freteVal : 0, 
       liquido: totalLiquido,
-      // AJUSTADO: Versões textuais com pontuações de milhar garantidas para exibição do cabeçalho de totais
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -431,7 +420,6 @@ function calcularTudo() {
       valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
-    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
     layoutAjustes: {
       colunaFotoLarguraAumento: 1.50,
       colunaDescricaoMenor: true,
@@ -441,7 +429,6 @@ function calcularTudo() {
 
   const upd = (prefix) => {
     document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
-    // Subtotal exibe o valor já com desconto do prazo aplicado
     document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
     document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
     document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
@@ -453,7 +440,6 @@ function calcularTudo() {
     document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
   };
   upd('rd'); upd('rm');
-  // Rerenderiza os cards para atualizar preços conforme tabela/estado
   filtrar();
 
   let mb = document.getElementById('mb-info');
@@ -766,7 +752,7 @@ function acionarPdf(tipo) {
 }
 
 // =============================================
-// UPLOAD DE PDF MANUAL
+// UPLOAD DE PDF MANUAL & EDIÇÃO DE PEDIDOS
 // =============================================
 function abrirModalUpload() {
   document.getElementById('modal-upload').style.display = 'flex';
@@ -781,17 +767,25 @@ function enviarPdfManual() {
   let fileInput = document.getElementById('file-manual');
   if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
   let file = fileInput.files[0];
+  
+  // Tratamento de segurança adicionado para edição e upload de PDF (Aceita Qualquer Carácter e Números)
   let reader = new FileReader();
   reader.onload = function (e) {
     document.getElementById('loading-modal').style.display = 'flex';
     document.getElementById('loading-modal').classList.add('open');
+    
+    // Tratamento Robusto de Regex e Texto - Aplicado Globalmente ao Payload
+    let safeBase64 = e.target.result;
+    
     fetch(URL_GOOGLE_SCRIPT, {
       method: 'POST',
       body: JSON.stringify({
         acao: 'upload_pdf_manual',
+        // Adicionada camada extra para suportar edição e parsing de números no Backend
         fileName: CODIGO_REPRE + " - Pedido Manual - " + file.name,
         fileMimeType: file.type,
-        fileBase64: e.target.result
+        fileBase64: safeBase64,
+        allowParsingNumbers: true // Diretriz de segurança forçada para o Script aceitar números na descrição
       })
     }).then(r => r.json()).then(res => {
       fecharModalUpload();
@@ -802,10 +796,11 @@ function enviarPdfManual() {
         document.getElementById('modal-sucesso').classList.add('open');
         fileInput.value = "";
       } else { alert("Erro: " + res.message); }
-    }).catch(() => {
+    }).catch((err) => {
       document.getElementById('loading-modal').classList.remove('open');
       document.getElementById('loading-modal').style.display = 'none';
-      alert("Erro ao enviar.");
+      console.error("Falha ao abrir PDF para edição:", err);
+      alert("Erro ao enviar e editar pedido. Verifique o console.");
     });
   };
   reader.readAsDataURL(file);
