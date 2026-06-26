@@ -152,6 +152,8 @@ function limFiltros() {
 }
 
 function somarBrutoPrevia() {
+  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
+  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
@@ -273,173 +275,11 @@ function confirmarAddModal() {
 function limSel() { 
   SELECIONADOS = {}; 
   calcularTudo(); 
+  // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
   });
-}
-
-// =============================================
-// CARRINHO — RENDERIZAÇÃO INDEPENDENTE
-// =============================================
-function renderizarCarrinho(tabelaAtiva) {
-  if (!tabelaAtiva) {
-    let uf = document.getElementById('uf-d').value;
-    let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-    let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
-    let pctPrazo = (100 - prazoBase) / 100;
-    let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
-    let limiteTabela = icmsBase === "7" ? 5000 : 2500;
-    let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
-    tabelaAtiva = (liquidoPrevia <= limiteTabela) ? tabelaBase : (icmsBase === "7" ? "M26072" : "M26122");
-  }
-
-  let hd = document.getElementById('lista-d');
-  if (!hd) return;
-
-  let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
-  let pctPrazo = (100 - prazoBase) / 100;
-
-  let scrollTop = hd.scrollTop;
-  hd.innerHTML = '';
-
-  let chaves = Object.keys(SELECIONADOS);
-  if (chaves.length === 0) {
-    hd.innerHTML = '<div class="vazio" style="padding:36px 20px;font-size:13px;text-align:center;">🛒<br><br>Carrinho vazio</div>';
-    let rh = document.getElementById('cart-header-resumo');
-    if (rh) rh.innerText = 'Nenhum item';
-    return;
-  }
-
-  let totalCx = 0;
-  chaves.forEach(cod => {
-    let item = SELECIONADOS[cod];
-    let p = item.produto, qty = item.qtd;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
-    let totalItem = precoUnit * qty;
-    totalCx += qty;
-
-    let div = document.createElement('div');
-    div.className = 'cart-item';
-
-    let imgEl = document.createElement('div');
-    imgEl.className = 'cart-item-img';
-    if (p.fileId) {
-      let img = document.createElement('img');
-      img.src = `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w80`;
-      img.style.cssText = 'width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .3s';
-      img.onload = () => { img.style.opacity = 1; };
-      imgEl.appendChild(img);
-    } else {
-      imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
-    }
-
-    let infoEl = document.createElement('div');
-    infoEl.className = 'cart-item-info';
-    infoEl.innerHTML = `
-      <div class="cart-item-cod">${p.codigo}</div>
-      <div class="cart-item-desc" title="${p.descricao}">${p.descricao}</div>
-      <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
-    `;
-
-    let ctrlEl = document.createElement('div');
-    ctrlEl.className = 'cart-qty-ctrl';
-    ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
-
-    let btnMenos = document.createElement('button');
-    btnMenos.className = 'cart-qty-btn';
-    btnMenos.textContent = '−';
-    btnMenos.title = 'Diminuir';
-
-    let inputQty = document.createElement('input');
-    inputQty.className = 'cart-qty-input';
-    inputQty.type = 'number';
-    inputQty.value = qty;
-    inputQty.min = p.qtdEmbalagem || 1;
-
-    let btnMais = document.createElement('button');
-    btnMais.className = 'cart-qty-btn';
-    btnMais.textContent = '+';
-    btnMais.title = 'Aumentar';
-
-    let multiplo = p.qtdEmbalagem || 1;
-
-    btnMenos.addEventListener('click', () => {
-      let novaQty = (SELECIONADOS[cod] ? SELECIONADOS[cod].qtd : qty) - multiplo;
-      if (novaQty < multiplo) {
-        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
-          delete SELECIONADOS[cod];
-          calcularTudo();
-        }
-      } else {
-        SELECIONADOS[cod].qtd = novaQty;
-        calcularTudo();
-      }
-    });
-
-    btnMais.addEventListener('click', () => {
-      if (SELECIONADOS[cod]) SELECIONADOS[cod].qtd += multiplo;
-      calcularTudo();
-    });
-
-    inputQty.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') inputQty.blur();
-    });
-
-    inputQty.addEventListener('blur', () => {
-      if (!SELECIONADOS[cod]) return;
-      let v = parseInt(inputQty.value) || 0;
-      if (v <= 0) {
-        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
-          delete SELECIONADOS[cod];
-          calcularTudo();
-        } else {
-          inputQty.value = SELECIONADOS[cod].qtd;
-        }
-        return;
-      }
-      if (v % multiplo !== 0) {
-        v = Math.ceil(v / multiplo) * multiplo;
-        showToast(`Corrigido para ${v} (múltiplo de ${multiplo})`);
-      }
-      SELECIONADOS[cod].qtd = v;
-      calcularTudo();
-    });
-
-    ctrlEl.appendChild(btnMenos);
-    ctrlEl.appendChild(inputQty);
-    ctrlEl.appendChild(btnMais);
-
-    let rmBtn = document.createElement('button');
-    rmBtn.className = 'cart-rm-btn';
-    rmBtn.title = 'Remover';
-    rmBtn.textContent = '✕';
-    rmBtn.addEventListener('click', () => {
-      delete SELECIONADOS[cod];
-      calcularTudo();
-    });
-
-    div.appendChild(imgEl);
-
-    let rightEl = document.createElement('div');
-    rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
-
-    let topRowEl = document.createElement('div');
-    topRowEl.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:6px;';
-    topRowEl.appendChild(infoEl);
-    topRowEl.appendChild(rmBtn);
-
-    rightEl.appendChild(topRowEl);
-    rightEl.appendChild(ctrlEl);
-
-    div.appendChild(rightEl);
-    hd.appendChild(div);
-  });
-
-  hd.scrollTop = scrollTop;
-
-  let rh = document.getElementById('cart-header-resumo');
-  if (rh) rh.innerText = `${chaves.length} produto${chaves.length > 1 ? 's' : ''} · ${totalCx} cx`;
 }
 
 function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
@@ -501,73 +341,89 @@ function calcularTudo() {
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
   if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
 
+  // 1ª passagem: calcula o total líquido com a tabela BASE para decidir a tabela definitiva
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela = icmsBase === "7" ? 5000 : 2500;
   let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
+  let tabelaAtiva = (liquidoPrevia <= limiteTabela)
+    ? tabelaBase
+    : (icmsBase === "7" ? "M26072" : "M26122");
 
-  let usaTabelaMaior = false;
-  if (liquidoPrevia > limiteTabela) { usaTabelaMaior = true; }
-  let tabelaAtual = usaTabelaMaior ? (icmsBase === "7" ? "M26072" : "M26122") : tabelaBase;
+  let subtotalBrutoInicial = somarBrutoPrevia();
 
-  let subtotalProdutos = 0, totalIpi = 0, listaItensPdf = [];
-  
-  Object.values(SELECIONADOS).forEach(item => {
+  let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
+  let hd = document.getElementById('lista-d');
+  hd.innerHTML = '';
+
+  Object.keys(SELECIONADOS).forEach(c => {
+    let item = SELECIONADOS[c];
     let p = item.produto, qty = item.qtd;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtual] || 0) : (p.precos[tabelaAtual] || 0);
-    subtotalProdutos += precoUnit * qty;
-    let valorComDesc = precoUnit * pctPrazo;
-    let descItem = precoUnit - valorComDesc;
-    let ipiVal = valorComDesc * (p.ipi / 100);
-    totalIpi += (ipiVal * qty);
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
+    let totalItemOriginal = precoUnit * qty;
+    subtotalProdutos += totalItemOriginal;
+    contItens += qty;
+
+    let valorComDescontoPrazo = precoUnit * pctPrazo;
+    let valorIpiCada = valorComDescontoPrazo * (p.ipi / 100);
+    let valorItemComIpi = valorComDescontoPrazo + valorIpiCada;
+    let valorTotalItemDescIpi = valorItemComIpi * qty;
+    totalIpi += (valorIpiCada * qty);
 
     listaItensPdf.push({
-      fotoId: p.fileId || '',
-      referencia: p.codigo,
-      descricao: p.descricao,
-      qtd: qty,
-      precoPrazo: valorComDesc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-      valorIpiStr: ipiVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ` (${p.ipi}%)`,
-      precoIpiStr: (valorComDesc + ipiVal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
-      totalLiquidoStr: ((valorComDesc + ipiVal) * qty).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+      fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
+      valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
+      valorComIpi: valorItemComIpi, 
+      valorTotalItem: valorTotalItemDescIpi,
+      // AJUSTADO: Força formatação com pontuação/separador de milhar pt-BR para a última coluna do PDF
+      valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      // AJUSTADO: Parâmetros para indicar aumento de 50% na foto e quebra/compensação na coluna da descrição
+      fotoLarguraAumento: 1.50,
+      quebraTextoDescricao: true,
+      colunaDescricaoLargura: "menor"
     });
+
+    hd.innerHTML += `<div class="sel-row">
+      <div class="sel-cod">${p.codigo}</div>
+      <div class="sel-desc">${p.descricao}</div>
+      <div class="sel-qty-wrap">${qty} cx</div>
+      <div class="sel-rm" onclick="rmItem('${c}')">✕</div>
+    </div>`;
   });
 
-  let valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo);
-  let totalComImpostos = (subtotalProdutos - valDescPrazo) + totalIpi;
-  let freteVal = 0, fInfo = "";
+  if (contItens === 0) { hd.innerHTML = '<div class="vazio">Carrinho vazio</div>'; }
 
-  let configFrete = FRETE_REGRAS[uf] || null;
-  if (configFrete) {
-    if (subtotalProdutos < configFrete.pedidoMinimo) {
-      fInfo = `<span style="color:red;font-weight:bold;">Mínimo não atingido (Faltam ${formatDin(configFrete.pedidoMinimo - subtotalProdutos)})</span>`;
-    } else if (subtotalProdutos >= configFrete.gratis) {
-      fInfo = "CIF (Grátis)";
-    } else {
-      freteVal = configFrete.intervalo;
-      fInfo = `FOB (Adicional ${formatDin(freteVal)}) — <span style="font-size:11px;color:var(--verde);">Faltam ${formatDin(configFrete.gratis - subtotalProdutos)} p/ CIF</span>`;
-    }
-  } else { fInfo = "Regra não cadastrada"; }
+  document.getElementById('badge').innerText = `${contItens} itens`;
+  document.getElementById('badge').style.display = contItens > 0 ? 'inline-block' : 'none';
+  document.getElementById('cart-count').innerText = Object.keys(SELECIONADOS).length;
+  document.getElementById('cart-count-m').innerText = Object.keys(SELECIONADOS).length;
 
-  let totalLiquido = totalComImpostos + (freteVal > 0 ? freteVal : 0);
+  let valDescPrazo = 0;
+  if (prazoBase > 0) { valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo); }
+  let subtotalLiquidoParcial = (subtotalProdutos - valDescPrazo) + totalIpi;
+
+  let freteVal = 0, configFrete = FRETE_REGRAS[uf] || null;
+  if (configFrete && subtotalBrutoInicial < configFrete.pedidoMinimo) freteVal = -1;
+  else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
+
+  let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
+  
+  // AJUSTADO: Novo cálculo do Valor de Produto (subtotal - prazo) solicitado para o bloco final do PDF
   let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
     tipoAcao: '',
     logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
-    codigoRepre: CODIGO_REPRE,
-    prazo: prazoTexto,
-    estado: uf,
-    itens: listaItensPdf,
-    clienteInfo: '',
-    observacoes: '',
-    contas: {
-      subtotal: subtotalProdutos,
-      pctPrazo: prazoBase,
-      valPrazo: valDescPrazo,
-      valorProduto: valorProdutoCalculado,
-      totalIpi,
-      valorFrete: freteVal > 0 ? freteVal : 0,
+    codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
+    clienteInfo: '', observacoes: '',
+    contas: { 
+      subtotal: subtotalProdutos, 
+      pctPrazo: prazoBase, 
+      valPrazo: valDescPrazo, 
+      valorProduto: valorProdutoCalculado, // AJUSTADO: Novo campo estruturado
+      totalIpi, 
+      valorFrete: freteVal > 0 ? freteVal : 0, 
       liquido: totalLiquido,
+      // AJUSTADO: Versões textuais com pontuações de milhar garantidas para exibição do cabeçalho de totais
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -575,77 +431,55 @@ function calcularTudo() {
       valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
-    tabelaAtiva: tabelaAtual
+    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
+    layoutAjustes: {
+      colunaFotoLarguraAumento: 1.50,
+      colunaDescricaoMenor: true,
+      quebraTextoDescricao: true
+    }
   };
 
-  ['res-sub-d'].forEach(id => document.getElementById(id).innerText = formatDin(subtotalProdutos));
-  ['res-prazo-d'].forEach(id => document.getElementById(id).innerText = `- ${formatDin(valDescPrazo)}`);
-  ['res-ipi-d'].forEach(id => document.getElementById(id).innerText = `+ ${formatDin(totalIpi)}`);
-  ['res-frete-d'].forEach(id => document.getElementById(id).innerHTML = fInfo);
-  ['res-total-d'].forEach(id => document.getElementById(id).innerText = formatDin(totalLiquido));
+  const upd = (prefix) => {
+    document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
+    // Subtotal exibe o valor já com desconto do prazo aplicado
+    document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
+    document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
+    document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
+    document.getElementById(prefix + '-ipi-val').innerText = '+ ' + formatDin(totalIpi);
+    let fLabel = document.getElementById(prefix + '-frete-val');
+    if (!uf) fLabel.innerText = "Selecione o Estado";
+    else if (freteVal === -1) { fLabel.innerText = `Falta ${formatDin(configFrete.pedidoMinimo - subtotalBrutoInicial)}`; fLabel.style.color = 'red'; }
+    else { fLabel.innerText = freteVal === 0 ? "GRÁTIS" : formatDin(freteVal); fLabel.style.color = ''; }
+    document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
+  };
+  upd('rd'); upd('rm');
+  // Rerenderiza os cards para atualizar preços conforme tabela/estado
+  filtrar();
 
-  let idsB = ['btn-disolle-d'];
-  if (configFrete && subtotalProdutos < configFrete.pedidoMinimo && subtotalProdutos > 0) {
-    idsB.forEach(id => { document.getElementById(id).disabled = true; document.getElementById(id).classList.remove('liberado'); });
-  } else if (subtotalProdutos > 0) {
-    idsB.forEach(id => { document.getElementById(id).disabled = false; document.getElementById(id).classList.add('liberado'); });
-  } else {
-    idsB.forEach(id => { document.getElementById(id).disabled = true; document.getElementById(id).classList.remove('liberado'); });
-  }
-  
-  renderizarCarrinho(tabelaAtual);
-  filtrar(); 
+  let mb = document.getElementById('mb-info');
+  mb.innerHTML = contItens === 0 ? 'Selecione produtos' : `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
+
+  let lib = contItens > 0 && uf !== "" && freteVal !== -1;
+  document.getElementById('btn-orc-d').disabled = !lib;
+  document.getElementById('btn-orc-m').disabled = !lib;
+  document.getElementById('btn-baixar-d').disabled = contItens === 0;
+  document.getElementById('btn-baixar-m').disabled = contItens === 0;
 }
 
 // =============================================
-// NOVO CLIENTE / CADASTRO 
+// CLIENTES — BUSCA E CADASTRO
 // =============================================
-function formatarCNPJ(input) {
-  let v = input.value.replace(/\D/g, '');
-  if (v.length > 14) v = v.slice(0, 14);
-  v = v.replace(/^(\d{2})(\d)/, '$1.$2');
-  v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
-  v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
-  v = v.replace(/(\d{4})(\d)/, '$1-$2');
-  input.value = v;
-
-  if (v.replace(/\D/g, '').length === 14) {
-    let loader = document.getElementById('nc-loader');
-    loader.style.display = 'inline-block';
-    document.getElementById('btn-salvar-nc').disabled = true;
+function verificarNovoClienteExistente(cnpj) {
+  if (!cnpj) return;
+  let cLimpo = cnpj.replace(/\D/g, '').trim();
+  let c = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cLimpo);
+  if (c) {
+    alert("⚠️ ALERTA IMPEDITIVO: Este CNPJ já existe cadastrado na planilha! Não é permitido criar duplicados.");
+    ['razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
+      document.getElementById('nc-' + f).value = c[f] || '';
+    });
     BLOQUEIA_SALVAMENTO_CNPJ = true;
-
-    fetch(`https://brasilapi.com.br/api/cnpj/v1/${v.replace(/\D/g, '')}`)
-      .then(r => r.json())
-      .then(d => {
-        loader.style.display = 'none';
-        if (d.message) {
-          alert("Erro Receita: " + d.message);
-          return;
-        }
-        document.getElementById('nc-razao').value = d.razao_social || '';
-        document.getElementById('nc-fantasia').value = d.nome_fantasia || '';
-        document.getElementById('nc-telefone').value = d.ddd_telefone_1 || d.ddd_telefone_2 || '';
-        document.getElementById('nc-endereco').value = (d.descricao_tipo_de_logradouro ? d.descricao_tipo_de_logradouro + ' ' : '') + (d.logradouro || '');
-        document.getElementById('nc-estado').value = d.uf || '';
-        document.getElementById('nc-bairro').value = d.bairro || '';
-        document.getElementById('nc-municipio').value = d.municipio || '';
-        document.getElementById('nc-numero').value = d.numero || '';
-        document.getElementById('nc-cep').value = d.cep || '';
-        
-        let dup = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === v.replace(/\D/g, ''));
-        if (dup) {
-          alert("⚠️ Este CNPJ já está cadastrado na sua carteira!");
-        } else {
-          BLOQUEIA_SALVAMENTO_CNPJ = false;
-          document.getElementById('btn-salvar-nc').disabled = false;
-        }
-      })
-      .catch(e => {
-        loader.style.display = 'none';
-        BLOQUEIA_SALVAMENTO_CNPJ = false;
-        document.getElementById('btn-salvar-nc').disabled = false;
-      });
+    document.getElementById('btn-salvar-nc').disabled = true;
   } else {
     BLOQUEIA_SALVAMENTO_CNPJ = false;
     document.getElementById('btn-salvar-nc').disabled = false;
@@ -678,6 +512,7 @@ function salvarNovoCliente() {
     alert("❌ Operação abortada! CNPJ duplicado na base de dados.");
     return;
   }
+
   let c = {
     cnpj: cCnpj,
     razao: document.getElementById('nc-razao').value,
@@ -690,70 +525,83 @@ function salvarNovoCliente() {
     numero: document.getElementById('nc-numero').value,
     cep: document.getElementById('nc-cep').value
   };
-  if (!c.cnpj || !c.razao) { alert("CNPJ e Razão Social são obrigatórios."); return; }
 
-  let btn = document.getElementById('btn-salvar-nc');
-  btn.innerText = "Salvando...";
-  btn.disabled = true;
+  if (!c.cnpj || !c.razao) { alert("Preencha obrigatoriamente CNPJ e Razão Social."); return; }
 
-  fetch(URL_GOOGLE_SCRIPT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ acao: 'salvar_cliente', repre: CODIGO_REPRE, cliente: c })
-  })
-  .then(r => r.json())
-  .then(res => {
-    if (res.status === 'success') {
-      CLIENTES.push(c);
-      fecharModalNovoCliente();
-      showToast("✅ Cliente salvo com sucesso!");
-      setTimeout(() => {
-        abrirModalCliente();
-        document.getElementById('cli-cnpj').value = c.cnpj;
-        buscarClienteAoDigitar(c.cnpj);
-      }, 500);
-    } else { alert("Erro ao salvar cliente."); }
-  })
-  .catch(e => { alert("Falha na conexão."); })
-  .finally(() => {
-    btn.innerText = "Salvar e Continuar";
-    btn.disabled = false;
-  });
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'salvar_cliente', cliente: c }) })
+    .then(r => r.json()).then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        CLIENTES.push(c);
+        showToast("✅ Cliente salvo com sucesso!");
+        fecharModalNovoCliente();
+        if (Object.keys(SELECIONADOS).length > 0) {
+          document.getElementById('modal-cliente').style.display = 'flex';
+          document.getElementById('modal-cliente').classList.add('open');
+          ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
+            document.getElementById('cli-' + f).value = c[f] || '';
+          });
+        }
+      } else { alert(res.message); }
+    }).catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Erro de conexão.");
+    });
 }
 
-// =============================================
-// LISTA DE CLIENTES (CONSULTA RÁPIDA)
-// =============================================
-function abrirModalListaClientes() {
-  document.getElementById('modal-lista-clientes').style.display = 'flex';
-  document.getElementById('modal-lista-clientes').classList.add('open');
-  renderizarListaClientes(CLIENTES);
+function abrirModalBuscarCliente() {
+  document.getElementById('input-busca-cliente').value = '';
+  document.getElementById('lista-busca-clientes').innerHTML = '<div class="vazio">Digite CNPJ, Fantasia ou Cidade para pesquisar...</div>';
+  document.getElementById('modal-buscar-cliente').style.display = 'flex';
+  document.getElementById('modal-buscar-cliente').classList.add('open');
 }
 
-function fecharModalListaClientes() {
-  document.getElementById('modal-lista-clientes').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-lista-clientes').style.display = 'none', 300);
+function fecharModalBuscarCliente() {
+  document.getElementById('modal-buscar-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-buscar-cliente').style.display = 'none', 300);
 }
 
-function filtrarListaClientes() {
-  let b = document.getElementById('busca-cliente').value.toLowerCase();
-  let f = CLIENTES.filter(c => (c.fantasia || '').toLowerCase().includes(b) || (c.razao || '').toLowerCase().includes(b) || (c.cnpj || '').includes(b));
-  renderizarListaClientes(f);
+function fecharModalDetalhesCliente() {
+  document.getElementById('modal-detalhes-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-detalhes-cliente').style.display = 'none', 300);
 }
 
-function renderizarListaClientes(lista) {
-  let container = document.getElementById('container-lista-clientes');
+function executarBuscaCliente() {
+  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
+  if (!v) { alert("Digite algum parâmetro para pesquisar."); return; }
+
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  setTimeout(() => {
+    filtrarClientesBusca();
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+  }, 300);
+}
+
+function filtrarClientesBusca() {
+  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
+  let container = document.getElementById('lista-busca-clientes');
   container.innerHTML = '';
-  document.getElementById('conteudo-detalhes-cliente').innerHTML = '<div style="color:var(--sub);font-size:12px;text-align:center;margin-top:20px;">Selecione um cliente para ver os detalhes</div>';
 
-  if (lista.length === 0) {
-    container.innerHTML = '<div style="padding:15px;color:var(--sub);font-size:13px;text-align:center;">Nenhum cliente encontrado.</div>';
-    return;
-  }
+  let filtrados = CLIENTES.filter(c =>
+    (c.cnpj || '').toLowerCase().includes(v) ||
+    (c.fantasia || '').toLowerCase().includes(v) ||
+    (c.razao || '').toLowerCase().includes(v) ||
+    (c.municipio || '').toLowerCase().includes(v)
+  );
 
-  lista.forEach(c => {
+  if (filtrados.length === 0) { container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>'; return; }
+
+  filtrados.forEach(c => {
     let d = document.createElement('div');
-    d.style.borderBottom = '1px solid var(--borda)';
+    d.className = 'sel-row';
     d.style.cursor = 'pointer';
     d.style.padding = '10px';
     d.onclick = () => mostrarFichaCompletaCliente(c);
@@ -778,24 +626,40 @@ function mostrarFichaCompletaCliente(c) {
     <div style="margin-bottom:6px;"><b>NÚMERO:</b> ${c.numero || '-'}</div>
     <div style="margin-bottom:6px;"><b>CEP:</b> ${c.cep || '-'}</div>
   `;
-  let btnCopiar = document.createElement('button');
-  btnCopiar.className = 'btn sec';
-  btnCopiar.style.marginTop = '15px';
-  btnCopiar.style.width = '100%';
-  btnCopiar.innerText = 'Copiar CNPJ para Pedido';
-  btnCopiar.onclick = () => {
-    fecharModalListaClientes();
-    abrirModalCliente();
-    document.getElementById('cli-cnpj').value = c.cnpj;
-    buscarClienteAoDigitar(c.cnpj);
+
+  let btnUsar = document.getElementById('btn-selecionar-cliente-busca');
+  btnUsar.style.display = 'block';
+  
+  btnUsar.onclick = () => {
+    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email'].forEach(f => {
+      let input = document.getElementById('cli-' + f);
+      if (input) input.value = c[f] || '';
+    });
+    
+    if(c.estado) {
+      let estadoUpper = c.estado.toUpperCase().trim();
+      let optD = document.querySelector(`#uf-d option[value="${estadoUpper}"]`);
+      if(optD) {
+        document.getElementById('uf-d').value = estadoUpper;
+        document.getElementById('uf-m').value = estadoUpper;
+        calcularTudo();
+      }
+    }
+
+    fecharModalDetalhesCliente();
+    fecharModalBuscarCliente();
+    showToast("✅ Cliente vinculado! Adicione os itens e finalize.");
   };
-  document.getElementById('conteudo-detalhes-cliente').appendChild(btnCopiar);
+
+  document.getElementById('modal-detalhes-cliente').style.display = 'flex';
+  document.getElementById('modal-detalhes-cliente').classList.add('open');
 }
 
 // =============================================
-// FINALIZAÇÃO DE PEDIDO & GERAÇÃO DE PDF
+// PDF E ENVIO DE PEDIDOS
 // =============================================
-function abrirModalCliente() {
+function abrirFluxoFechamento(t) {
+  fecharSheet();
   document.getElementById('modal-cliente').style.display = 'flex';
   document.getElementById('modal-cliente').classList.add('open');
 }
@@ -805,97 +669,151 @@ function fecharModalCliente() {
   setTimeout(() => document.getElementById('modal-cliente').style.display = 'none', 300);
 }
 
+function clicouForaCliente(e) { if (e.target === document.getElementById('modal-cliente')) fecharModalCliente(); }
+
 function confirmarSalvamentoPedido() {
-  let f_cnpj = document.getElementById('cli-cnpj').value.trim();
-  let f_razao = document.getElementById('cli-razao').value.trim();
-  if (!f_cnpj || !f_razao) { alert("Preencha CNPJ e Razão Social para gerar o pedido."); return; }
+  let cnpj = document.getElementById('cli-cnpj').value;
+  let razao = document.getElementById('cli-razao').value;
+  if (!cnpj || !razao) { alert("Preencha o CNPJ e a Razão Social para prosseguir."); return; }
 
-  let cInfo = `CNPJ/CPF: ${f_cnpj}\nRazão Social: ${f_razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`;
+  let obs = document.getElementById('cli-obs').value.trim();
+  let strCli = `CNPJ/CPF: ${cnpj}\nRazão Social: ${razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`;
 
-  DADOS_PDF_PRONTO.clienteInfo = cInfo;
-  DADOS_PDF_PRONTO.observacoes = document.getElementById('cli-obs').value.trim();
+  DADOS_PDF_PRONTO.clienteInfo = strCli;
+  DADOS_PDF_PRONTO.observacoes = obs;
+  DADOS_PDF_PRONTO.tipoAcao = 'enviar';
+  DADOS_PDF_PRONTO.cliente = {
+    cnpj, razao,
+    fantasia: document.getElementById('cli-fantasia').value,
+    telefone: document.getElementById('cli-telefone').value,
+    endereco: document.getElementById('cli-endereco').value,
+    estado: document.getElementById('cli-estado').value,
+    bairro: document.getElementById('cli-bairro').value,
+    municipio: document.getElementById('cli-municipio').value,
+    numero: document.getElementById('cli-numero').value,
+    cep: document.getElementById('cli-cep').value,
+    email: document.getElementById('cli-email').value,
+    obs
+  };
 
   fecharModalCliente();
-  fecharCarrinho();
-  
-  if (DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') {
-    document.getElementById('loading-txt').innerText = "Enviando Pedido Oficial...";
-  } else {
-    document.getElementById('loading-txt').innerText = "Gerando PDF...";
-  }
   document.getElementById('loading-modal').style.display = 'flex';
   document.getElementById('loading-modal').classList.add('open');
 
-  ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
-    document.getElementById(id).classList.remove('liberado');
-    document.getElementById(id).disabled = true;
-  });
+  let payloadPlanilha = {
+    acao: 'pedido',
+    qtd: document.getElementById('cart-count').innerText,
+    subtotalProdutos: DADOS_PDF_PRONTO.contas.subtotal,
+    totalIpi: DADOS_PDF_PRONTO.contas.totalIpi,
+    totalDescontos: DADOS_PDF_PRONTO.contas.valPrazo,
+    prazo: DADOS_PDF_PRONTO.prazo,
+    total: DADOS_PDF_PRONTO.contas.liquido,
+    clienteInfo: strCli + (obs ? "\nObs: " + obs : ""),
+    itens: JSON.stringify(DADOS_PDF_PRONTO.itens.map(x => `${x.codigo} (${x.qtd}cx)`))
+  };
 
-  fetch(URL_GOOGLE_SCRIPT, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO })
-  })
-  .then(res => res.json())
-  .then(res => {
-    document.getElementById('loading-modal').classList.remove('open');
-    document.getElementById('loading-modal').style.display = 'none';
-
-    if (res.status === 'success' && res.base64) {
-      let f_razao_limpa = document.getElementById('cli-razao').value.trim() || 'SEM_RAZAO';
-      let nomeFinal = CODIGO_REPRE + '_' + f_razao_limpa.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
-      let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
-
-      let a = document.createElement('a');
-      a.href = href;
-      a.download = nomeFinal;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
-        document.getElementById(id).classList.add('liberado');
-        document.getElementById(id).disabled = false;
-      });
-
-      document.getElementById('modal-sucesso').style.display = 'flex';
-      document.getElementById('modal-sucesso').classList.add('open');
-    } else {
-      alert("Erro ao processar PDF: " + res.message);
-    }
-  })
-  .catch((error) => {
-    console.error("Erro na requisição Fetch: ", error);
-    document.getElementById('loading-modal').classList.remove('open');
-    document.getElementById('loading-modal').style.display = 'none';
-    alert("Falha na comunicação geral da transação. Verifique se o navegador está bloqueando a requisição.");
-  });
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify(payloadPlanilha) })
+    .then(() => fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) }))
+    .then(r => r.json())
+    .then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
+        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
+        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
+          document.getElementById(id).classList.add('liberado');
+          document.getElementById(id).disabled = false;
+        });
+        document.getElementById('modal-sucesso').style.display = 'flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+      } else { alert("Erro ao processar PDF: " + res.message); }
+    })
+    .catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Falha na comunicação geral da transação.");
+    });
 }
 
 function acionarPdf(tipo) {
   if (!DADOS_PDF_PRONTO || DADOS_PDF_PRONTO.itens.length === 0) { alert("Carrinho vazio."); return; }
   DADOS_PDF_PRONTO.tipoAcao = tipo;
-
   if (tipo === 'baixar' && !DADOS_PDF_PRONTO.clienteInfo) {
     DADOS_PDF_PRONTO.clienteInfo = "Download Rápido - Sem dados cadastrais preenchidos";
   }
-
-  document.getElementById('cli-cnpj').value = '';
-  document.getElementById('cli-razao').value = '';
-  document.getElementById('cli-fantasia').value = '';
-  document.getElementById('cli-telefone').value = '';
-  document.getElementById('cli-endereco').value = '';
-  document.getElementById('cli-estado').value = '';
-  document.getElementById('cli-bairro').value = '';
-  document.getElementById('cli-municipio').value = '';
-  document.getElementById('cli-numero').value = '';
-  document.getElementById('cli-cep').value = '';
-  document.getElementById('cli-email').value = '';
-  document.getElementById('cli-obs').value = '';
-
-  abrirModalCliente();
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) })
+    .then(r => r.json()).then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
+        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
+        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        document.getElementById('modal-sucesso').style.display = 'flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+      } else { alert("Erro ao processar operação: " + res.message); }
+    }).catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Falha de rede.");
+    });
 }
 
+// =============================================
+// UPLOAD DE PDF MANUAL
+// =============================================
+function abrirModalUpload() {
+  document.getElementById('modal-upload').style.display = 'flex';
+  document.getElementById('modal-upload').classList.add('open');
+}
+function fecharModalUpload() {
+  document.getElementById('modal-upload').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-upload').style.display = 'none', 300);
+}
+
+function enviarPdfManual() {
+  let fileInput = document.getElementById('file-manual');
+  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
+  let file = fileInput.files[0];
+  let reader = new FileReader();
+  reader.onload = function (e) {
+    document.getElementById('loading-modal').style.display = 'flex';
+    document.getElementById('loading-modal').classList.add('open');
+    fetch(URL_GOOGLE_SCRIPT, {
+      method: 'POST',
+      body: JSON.stringify({
+        acao: 'upload_pdf_manual',
+        fileName: CODIGO_REPRE + " - Pedido Manual - " + file.name,
+        fileMimeType: file.type,
+        fileBase64: e.target.result
+      })
+    }).then(r => r.json()).then(res => {
+      fecharModalUpload();
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        document.getElementById('modal-sucesso').style.display = 'flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+        fileInput.value = "";
+      } else { alert("Erro: " + res.message); }
+    }).catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Erro ao enviar.");
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+// =============================================
+// NAVEGAÇÃO — MODAIS, SHEET E CARRINHO
+// =============================================
 function fecharModalSucesso() {
   document.getElementById('modal-sucesso').classList.remove('open');
   setTimeout(() => document.getElementById('modal-sucesso').style.display = 'none', 300);
@@ -926,258 +844,4 @@ function abrirModalNovoCliente() {
 function fecharModalNovoCliente() {
   document.getElementById('modal-novo-cliente').classList.remove('open');
   setTimeout(() => document.getElementById('modal-novo-cliente').style.display = 'none', 300);
-  document.getElementById('nc-cnpj').value = '';
-  document.getElementById('nc-razao').value = '';
-  document.getElementById('nc-fantasia').value = '';
-  document.getElementById('nc-telefone').value = '';
-  document.getElementById('nc-endereco').value = '';
-  document.getElementById('nc-estado').value = '';
-  document.getElementById('nc-bairro').value = '';
-  document.getElementById('nc-municipio').value = '';
-  document.getElementById('nc-numero').value = '';
-  document.getElementById('nc-cep').value = '';
-}
-
-// =============================================
-// EDIÇÃO DE PEDIDOS ANTERIORES (LEITOR DE PDF)
-// =============================================
-
-function acionarImportacaoPdf() {
-  document.getElementById('input-importar-pdf').click();
-}
-
-async function processarArquivoPdf(event) {
-  let file = event.target.files[0];
-  if (!file) return;
-
-  if (file.type !== 'application/pdf') {
-    alert("Por favor, selecione um arquivo PDF.");
-    return;
-  }
-
-  document.getElementById('loading-txt').innerText = "Lendo PDF...";
-  document.getElementById('loading-modal').style.display = 'flex';
-  document.getElementById('loading-modal').classList.add('open');
-
-  try {
-    await garantirLeitorPdf();
-    let textoPdf = await extrairTextoPdf(file);
-    let dadosImportados = parsearPedidoDiSolle(textoPdf);
-
-    if (dadosImportados.itens.length === 0) {
-      alert("Nenhum item encontrado no PDF. Verifique se é um Pedido Di Solle válido.");
-    } else {
-      aplicarPedidoImportado(dadosImportados);
-      alert(`Pedido importado com sucesso!\nCliente: ${dadosImportados.cliente.razao}\nItens: ${dadosImportados.itens.length}`);
-    }
-  } catch (error) {
-    console.error(error);
-    alert("Erro ao importar pedido: " + error.message);
-  } finally {
-    document.getElementById('loading-modal').classList.remove('open');
-    document.getElementById('loading-modal').style.display = 'none';
-    event.target.value = ''; // Reseta o input
-  }
-}
-
-// Garante que a biblioteca PDF.js esteja carregada
-function garantirLeitorPdf() {
-  return new Promise((resolve, reject) => {
-    if (window.pdfjsLib) { resolve(); return; }
-    let script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    script.onload = () => {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      resolve();
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar leitor de PDF."));
-    document.head.appendChild(script);
-  });
-}
-
-// Extrai todo o texto do PDF página a página
-async function extrairTextoPdf(file) {
-  let arrayBuffer = await file.arrayBuffer();
-  let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let textoTotal = '';
-
-  for (let i = 1; i <= pdf.numPages; i++) {
-    let page = await pdf.getPage(i);
-    let content = await page.getTextContent();
-    // Junta itens de texto com espaço, quebra de página entre páginas
-    let linhas = content.items.map(it => it.str).join(' ');
-    textoTotal += linhas + '\n';
-  }
-  return textoTotal;
-}
-
-// Parseia o texto extraído do PDF di solle para dados estruturados
-function parsearPedidoDiSolle(texto) {
-  let t = texto.replace(/\n/g, ' '); // lineariza tudo para facilitar busca por Regex
-  let resultado = {
-    cliente: {
-      cnpj: '', razao: '', fantasia: '', telefone: '', endereco: '',
-      estado: '', bairro: '', municipio: '', numero: '', cep: '', email: ''
-    },
-    itens: [],
-    estado_destino: '',
-    prazo: ''
-  };
-
-  // ---- CLIENTE ----
-  let mCnpj = t.match(/CNPJ\/CPF[:\|]\s*([\d\.\-\/]+)/i);
-  if (mCnpj) resultado.cliente.cnpj = mCnpj[1].trim();
-
-  let mRazao = t.match(/Razão Social[:\|]\s*(.+?)\s+Fantasia/i);
-  if (mRazao) resultado.cliente.razao = mRazao[1].trim();
-
-  let mFantasia = t.match(/Fantasia[:\|]\s*(.*?)\s+Telefone/i);
-  if (mFantasia) resultado.cliente.fantasia = mFantasia[1].trim();
-
-  let mTel = t.match(/Telefone[:\|]\s*(.+?)\s+Endereço/i);
-  if (mTel) resultado.cliente.telefone = mTel[1].trim();
-
-  let mEnd = t.match(/Endereço[:\|]\s*(.+?)\s+Estado:/i);
-  if (mEnd) resultado.cliente.endereco = mEnd[1].trim();
-
-  let mUf = t.match(/Estado[:\|]\s*([A-Z]{2})/i);
-  if (mUf) resultado.cliente.estado = mUf[1].trim();
-
-  let mBairro = t.match(/Bairro[:\|]\s*(.+?)\s+Município/i);
-  if (mBairro) resultado.cliente.bairro = mBairro[1].trim();
-
-  let mMun = t.match(/Município[:\|]\s*(.+?)\s+Número/i);
-  if (mMun) resultado.cliente.municipio = mMun[1].trim();
-
-  let mNum = t.match(/Número[:\|]\s*(.+?)\s+CEP/i);
-  if (mNum) resultado.cliente.numero = mNum[1].trim();
-
-  let mCep = t.match(/CEP[:\|]\s*(.+?)\s+E-mail/i);
-  if (mCep) resultado.cliente.cep = mCep[1].trim();
-
-  let mEmail = t.match(/E-mail[:\|]\s*([^\s]+)/i);
-  if (mEmail) resultado.cliente.email = mEmail[1].trim();
-
-  // ---- DESTINO e PRAZO ----
-  let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
-  resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
-
-  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|]+?)(?:\s*\||$)/i);
-  resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
-
-  // ---- ITENS ----
-  // Padrão de linha: CODIGO DESCRICAO QTD ...
-  // Código Di Solle: 13 dígitos numéricos
-  // Usamos (.*?) para aceitar letras, NÚMEROS e símbolos na descrição do produto
-  let linhasItens = [...t.matchAll(/(\d{13})\s+(.*?)\s+(\d{1,5})\s+R\$/g)];
-
-  if (linhasItens.length === 0) {
-    // Fallback super tolerante: Tenta códigos de 10 a 15 dígitos
-    linhasItens = [...t.matchAll(/(\d{10,15})\s+(.*?)\s+(\d{1,5})\s+R\$/g)];
-  }
-
-  linhasItens.forEach(m => {
-    resultado.itens.push({
-      codigo: m[1].trim(),
-      qtd: parseInt(m[3])
-    });
-  });
-
-  return resultado;
-}
-
-// Aplica os dados lidos do PDF no carrinho atual
-function aplicarPedidoImportado(dados) {
-  SELECIONADOS = {};
-  let avisos = [];
-
-  // Mapear Itens
-  dados.itens.forEach(itemPdf => {
-    let codBase = itemPdf.codigo.toLowerCase().trim();
-    let produtoEncontrado = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBase || (p.codigoEan && p.codigoEan.trim() === itemPdf.codigo.trim()));
-
-    if (produtoEncontrado) {
-      SELECIONADOS[codBase] = {
-        produto: produtoEncontrado,
-        qtd: itemPdf.qtd
-      };
-    } else {
-      avisos.push(`Produto cód ${itemPdf.codigo} não encontrado no catálogo.`);
-    }
-  });
-
-  // Mapear Estado
-  if (dados.estado_destino) {
-    let selectUf = document.getElementById('uf-d');
-    let optionExists = [...selectUf.options].some(opt => opt.value === dados.estado_destino);
-    if (optionExists) {
-      document.getElementById('uf-d').value = dados.estado_destino;
-      document.getElementById('uf-m').value = dados.estado_destino;
-    }
-  }
-
-  // Mapear Prazo (Tentativa de Match com as descrições no HTML)
-  let prazoStr = dados.prazo.replace(/ \(\-\d+%\)/g, '').trim(); // Remove " (-14%)" se houver
-  let prazoEncontrado = false;
-  
-  if (prazoStr) {
-    // Tenta encontrar em sub_prazos
-    for (const [base, subs] of Object.entries(SUB_PRAZOS)) {
-      if (subs.includes(prazoStr)) {
-        document.getElementById('prazo-d').value = base;
-        document.getElementById('prazo-m').value = base;
-        alterouPrazoBase('prazo-d', 'prazo-m');
-        
-        document.getElementById('subprazo-d').value = prazoStr;
-        document.getElementById('subprazo-m').value = prazoStr;
-        prazoEncontrado = true;
-        break;
-      }
-    }
-
-    // Prazo simples
-    if (!prazoEncontrado) {
-      const MAP = {
-        "28 DIAS":"9",
-        "35 DIAS":"7",
-        "42 DIAS":"5",
-        "56 DIAS":"2",
-        "63 DIAS":"0",
-        "ANTECIPADO":"14"
-      };
-      if (MAP[prazoStr]) {
-        document.getElementById('prazo-d').value = MAP[prazoStr];
-        document.getElementById('prazo-m').value = MAP[prazoStr];
-        alterouPrazoBase('prazo-d', 'prazo-m');
-        prazoEncontrado = true;
-      }
-    }
-
-    if (!prazoEncontrado) {
-      avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente — selecione manualmente.`);
-    }
-  }
-
-  // Preencher Cliente Invisível (para edição)
-  if (dados.cliente.cnpj) {
-    setTimeout(() => {
-      document.getElementById('cli-cnpj').value = dados.cliente.cnpj;
-      document.getElementById('cli-razao').value = dados.cliente.razao;
-      document.getElementById('cli-fantasia').value = dados.cliente.fantasia;
-      document.getElementById('cli-telefone').value = dados.cliente.telefone;
-      document.getElementById('cli-endereco').value = dados.cliente.endereco;
-      document.getElementById('cli-estado').value = dados.cliente.estado;
-      document.getElementById('cli-bairro').value = dados.cliente.bairro;
-      document.getElementById('cli-municipio').value = dados.cliente.municipio;
-      document.getElementById('cli-numero').value = dados.cliente.numero;
-      document.getElementById('cli-cep').value = dados.cliente.cep;
-      document.getElementById('cli-email').value = dados.cliente.email;
-    }, 500);
-  }
-
-  calcularTudo();
-
-  if (avisos.length > 0) {
-    alert("Avisos durante a importação:\n\n- " + avisos.join('\n- '));
-  }
 }
