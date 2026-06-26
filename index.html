@@ -36,36 +36,19 @@
 </div>
 
 <div class="modal" id="modal-upload" onclick="if(event.target===this) fecharModalUpload()">
-  <div class="modal-box" style="padding:24px;max-width:420px;text-align:center;">
-    <h3 style="margin-bottom:8px;color:var(--verde-dk);font-size:16px;">⬆️ Subir Pedido Manual (PDF)</h3>
-    <p style="font-size:12px;color:var(--sub);margin-bottom:16px;">Selecione um PDF de pedido para enviar à Di Solle ou importar os itens para edição.</p>
+  <div class="modal-box" style="padding:24px;max-width:400px;text-align:center;position:relative;">
+    <h3 style="margin-bottom:8px;color:var(--verde-dk);font-size:16px;">📋 Subir Pedido Manual (PDF)</h3>
+    <p style="font-size:12px;color:var(--sub);margin-bottom:16px;">Selecione um PDF de pedido para enviá-lo à Di Solle ou importar os itens para edição.</p>
     <input type="file" id="file-manual" accept=".pdf" style="margin-bottom:16px;width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
-    <div style="display:flex;flex-direction:column;gap:10px;">
-      <button class="btn prim" onclick="enviarPdfManual()" style="margin:0;">🚀 Enviar para Di Solle</button>
-      <button class="btn" onclick="importarPedidoPdf()" style="margin:0;background:var(--verde-lt);color:var(--verde-dk);border-color:var(--verde);font-weight:700;">✏️ Editar Pedido</button>
+    <!-- Loading interno -->
+    <div id="loading-import" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.92);border-radius:14px;flex-direction:column;align-items:center;justify-content:center;z-index:10;">
+      <div class="modal-spin" style="display:block;margin-bottom:12px;"></div>
+      <div style="font-weight:bold;color:var(--verde-dk);font-size:14px;">Importando Pedido...</div>
+      <div style="font-size:12px;color:var(--sub);margin-top:6px;">Lendo o arquivo PDF...</div>
     </div>
-    <button class="btn" style="margin-top:12px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
-  </div>
-</div>
-
-<!-- Modal de importação de pedido -->
-<div class="modal" id="modal-importando" style="display:none;">
-  <div class="modal-box" style="padding:30px;max-width:340px;height:auto;text-align:center;background:#fff;">
-    <div class="modal-spin" style="display:block;margin:0 auto 16px;"></div>
-    <div style="font-weight:bold;color:var(--verde-dk);font-size:16px;">Importando Pedido...</div>
-    <div style="font-size:12px;color:var(--sub);margin-top:8px;" id="import-status-txt">Lendo PDF e identificando itens...</div>
-  </div>
-</div>
-
-<!-- Modal de sucesso de importação -->
-<div class="modal" id="modal-importado" onclick="if(event.target===this) fecharModalImportado()">
-  <div class="modal-box" style="padding:30px 20px;max-width:380px;height:auto;text-align:center;position:relative;background:#fff;">
-    <button class="modal-close-btn" onclick="fecharModalImportado()" style="background:#f4f4f2;color:#333;">✕</button>
-    <div style="font-size:46px;margin-bottom:10px;">📦</div>
-    <h3 style="color:var(--verde-dk);font-size:18px;margin-bottom:8px;">Pedido Importado!</h3>
-    <p style="font-size:13px;color:var(--sub);line-height:1.5;" id="import-resumo-txt">Itens carregados com sucesso.</p>
-    <div id="import-avisos" style="margin-top:10px;padding:10px;background:#FFF4E5;border:1px solid #F5A623;border-radius:8px;font-size:11px;color:#8B5E00;text-align:left;display:none;"></div>
-    <button class="btn prim" onclick="fecharModalImportado()" style="margin-top:20px;">✏️ Editar Pedido</button>
+    <button class="btn prim" onclick="enviarPdfManual()" style="width:100%;margin-bottom:8px;">🚀 Enviar para Di Solle</button>
+    <button class="btn" onclick="editarPedido()" style="width:100%;margin-bottom:0;background:#fff;color:var(--verde-dk);border-color:var(--verde);">✏️ Editar Pedido</button>
+    <button class="btn" style="margin-top:8px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
   </div>
 </div>
 
@@ -113,24 +96,13 @@
 </div>
 
 <div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
-  <div class="modal-box" style="padding:0;max-width:520px;max-height:88vh;display:flex;flex-direction:column;">
-    <!-- Header do carrinho -->
-    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--borda);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:20px;">🛒</span>
-        <div>
-          <div style="font-weight:700;color:var(--texto);font-size:15px;">Carrinho de Compras</div>
-          <div style="font-size:11px;color:var(--sub);" id="cart-header-resumo">Nenhum item</div>
-        </div>
-      </div>
-      <button onclick="fecharCarrinho()" style="background:var(--cinza);border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:var(--sub);display:flex;align-items:center;justify-content:center;">✕</button>
+  <div class="modal-box" style="padding:20px;max-width:450px;max-height:85vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <h3 style="color:var(--verde-dk);font-size:16px;display:flex;align-items:center;gap:6px;">🛒 Carrinho de Compras</h3>
+      <button onclick="fecharCarrinho()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">✕</button>
     </div>
-    <!-- Lista de itens -->
-    <div id="lista-d" style="flex:1;overflow-y:auto;padding:8px 0;"></div>
-    <!-- Footer -->
-    <div style="padding:14px 20px;border-top:1px solid var(--borda);flex-shrink:0;background:#fff;">
-      <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin:0;color:#c0392b;border-color:#f5c6c6;background:#fff8f8;font-size:12px;">🗑️ Esvaziar Carrinho</button>
-    </div>
+    <div class="lista-sel" id="lista-d" style="border:none;"></div>
+    <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin-top:10px;margin-bottom:0;">🗑️ Esvaziar Carrinho</button>
   </div>
 </div>
 
