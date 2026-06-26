@@ -903,79 +903,45 @@ function normalizarCodigo(cod) {
 function parsearItensDoPdf(texto) {
   let itens = [];
 
-  // Estratégia: encontra linhas da tabela de itens do PDF Di Solle.
-  // A tabela tem colunas: Referência | Descrição | Qtd | ...
-  // O código do produto NÃO contém espaço (ex: M26071, 600567, AB123)
-  // A quantidade é um número inteiro que aparece DEPOIS da descrição completa
-  // O problema: descrições como "PARATY COMBO FACAS 72 PECAS A GRANEL BRANCO"
-  // têm números no meio — não podemos usar números como separador.
+  // Formato real do PDF Di Solle (extraído via pdfjs):
+  // "0199575404000 PARATY COMBO FACAS 72 PECAS A GRANEL PRETO 9 R$ 448,92 R$ 315,14 (7,80%) R$ 483,94 R$ 4.355,42"
+  //
+  // Estrutura:  [CODIGO]  [DESCRIÇÃO — pode ter números no meio]  [QTD]  R$ [valor],nn  ...
+  //
+  // ESTRATÉGIA SEGURA:
+  // 1. Varrer todos os produtos carregados no catálogo (PRODUTOS)
+  // 2. Para cada produto, buscar seu código exato no texto do PDF
+  // 3. Após o código, capturar o primeiro número inteiro que esteja imediatamente
+  //    antes de "R$" — esse é a quantidade, pois a estrutura é:
+  //    [codigo] [descrição] [qtd] R$ [valor]
+  //    O "R$" serve de âncora segura, evitando confundir números da descrição (ex: 72)
+  //    com a quantidade.
 
-  // Abordagem: extrai todas as referências conhecidas no PDF
-  // Padrão de código Di Solle: sequência alfanumérica sem espaço (letras+números)
-  // Seguida de texto de descrição (pode ter números), seguida de qtd inteira, seguida de valores R$
-
-  // Regex: captura (CODIGO)(DESCRIÇÃO com possíveis números)(QTD)(valor)
-  // Âncora: código é seguido de texto, a qtd é seguida de valor monetário (R$ ou número com vírgula)
-  // Usamos o padrão: CODIGO DESCRIÇÃO... QTD VALOR,NN
-  // onde CODIGO = word sem espaço, QTD = número inteiro antes de um valor com vírgula
-  
-  // Divide o texto em tokens e procura padrões de itens
-  // Padrão de um item no PDF Di Solle:
-  // [código] [descrição multipalavra possivelmente com números] [qtd] [valor com vírgula] ...
-
-  // Remove espaços múltiplos e quebras de linha desnecessárias
   let texto_limpo = texto.replace(/\s+/g, ' ').trim();
 
-  // Estratégia principal: busca blocos que começam com um código de produto
-  // Os códigos Di Solle são tipicamente: só números (ex: 600567) ou letras+números sem espaço
-  // Após o código vem a descrição, depois a qtd (número inteiro), depois valor "X.XXX,XX" ou "X,XX"
+  PRODUTOS.forEach(function(p) {
+    let codNorm = normalizarCodigo(p.codigo);
 
-  // Regex robusta: captura código, depois tudo até encontrar padrão de (qtd inteira)(espaço)(valor R$ com vírgula)
-  // A qtd é o ÚLTIMO número inteiro antes de um valor monetário com vírgula
-  // Valor monetário: número com vírgula decimal tipo 1.234,56 ou 12,34
-  let reLinha = /([A-Za-z0-9]+(?:\.[0-9]+)?)\s+([A-ZÁÉÍÓÚÃÕÇÀ][\w\sÁÉÍÓÚÃÕÇÀáéíóúãõçà\/\-\.]*?)\s+(\d+)\s+[\d\.]+,\d{2}/g;
+    // Escapa o código para uso em regex
+    let codEscapado = p.codigo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-  let match;
-  while ((match = reLinha.exec(texto_limpo)) !== null) {
-    let codigoCandidato = match[1];
-    let descricaoCandidata = match[2].trim();
-    let qtdCandidata = parseInt(match[3]);
+    // Regex: CODIGO + qualquer coisa (descrição com possíveis números) + (número inteiro) + R$
+    // O (\d+) captura a QTD — o último número antes de "R$"
+    // Usa [\s\S]*? para ser não-guloso e parar no primeiro R$ encontrado
+    let re = new RegExp(codEscapado + '[\\s\\S]*?\\s(\\d+)\\s+R\\$', 'i');
+    let m = texto_limpo.match(re);
 
-    // Filtra falsos positivos: código deve ter pelo menos 3 chars e a descrição pelo menos 3 palavras ou 10 chars
-    if (codigoCandidato.length < 3) continue;
-    if (descricaoCandidata.length < 5) continue;
-    // Ignora linhas de cabeçalho/totais
-    let descUpper = descricaoCandidata.toUpperCase();
-    if (descUpper.includes('REFERÊNCIA') || descUpper.includes('DESCRIÇÃO') || descUpper.includes('SUBTOTAL') || descUpper.includes('TOTAL') || descUpper.includes('FRETE') || descUpper.includes('IPI')) continue;
-    // Qtd deve ser razoável (entre 1 e 99999)
-    if (qtdCandidata < 1 || qtdCandidata > 99999) continue;
-    // Verifica se o código existe nos produtos carregados
-    let codNorm = normalizarCodigo(codigoCandidato);
-    let existeNoCatalogo = PRODUTOS.some(p => normalizarCodigo(p.codigo) === codNorm);
-    if (!existeNoCatalogo) continue;
-
-    // Evita duplicatas
-    if (!itens.find(i => normalizarCodigo(i.codigo) === codNorm)) {
-      itens.push({ codigo: codigoCandidato, qtd: qtdCandidata });
-    }
-  }
-
-  // Fallback: se não achou nada com a regex principal, tenta método mais simples
-  // (útil para PDFs com formatação diferente)
-  if (itens.length === 0) {
-    PRODUTOS.forEach(function(p) {
-      let codEscapado = p.codigo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Busca código seguido de qualquer texto e depois um número inteiro
-      let reSimples = new RegExp(codEscapado + '\\s+[\\w\\s]+?\\s+(\\d+)\\s+[\\d\\.]+,\\d{2}', 'i');
-      let m = texto_limpo.match(reSimples);
-      if (m) {
-        let qtd = parseInt(m[1]);
-        if (qtd >= 1 && qtd <= 99999) {
+    if (m) {
+      let qtd = parseInt(m[1]);
+      // Qtd razoável e não é um número de CNP/telefone/CEP (limite superior 9999)
+      if (qtd >= 1 && qtd <= 9999) {
+        // Evita duplicatas
+        if (!itens.find(i => normalizarCodigo(i.codigo) === codNorm)) {
           itens.push({ codigo: p.codigo, qtd: qtd });
         }
       }
-    });
-  }
+    }
+  });
 
   return itens;
 }
