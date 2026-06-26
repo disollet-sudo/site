@@ -152,8 +152,6 @@ function limFiltros() {
 }
 
 function somarBrutoPrevia() {
-  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
-  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
@@ -275,7 +273,6 @@ function confirmarAddModal() {
 function limSel() { 
   SELECIONADOS = {}; 
   calcularTudo(); 
-  // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
@@ -286,7 +283,6 @@ function limSel() {
 // CARRINHO — RENDERIZAÇÃO INDEPENDENTE
 // =============================================
 function renderizarCarrinho(tabelaAtiva) {
-  // Recalcula tabelaAtiva se não fornecida
   if (!tabelaAtiva) {
     let uf = document.getElementById('uf-d').value;
     let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
@@ -304,7 +300,6 @@ function renderizarCarrinho(tabelaAtiva) {
   let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
   let pctPrazo = (100 - prazoBase) / 100;
 
-  // Guarda a posição de scroll antes de limpar
   let scrollTop = hd.scrollTop;
   hd.innerHTML = '';
 
@@ -327,7 +322,6 @@ function renderizarCarrinho(tabelaAtiva) {
     let div = document.createElement('div');
     div.className = 'cart-item';
 
-    // Miniatura
     let imgEl = document.createElement('div');
     imgEl.className = 'cart-item-img';
     if (p.fileId) {
@@ -340,7 +334,6 @@ function renderizarCarrinho(tabelaAtiva) {
       imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
     }
 
-    // Info
     let infoEl = document.createElement('div');
     infoEl.className = 'cart-item-info';
     infoEl.innerHTML = `
@@ -349,7 +342,6 @@ function renderizarCarrinho(tabelaAtiva) {
       <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
     `;
 
-    // Controle de quantidade — usando addEventListener, não onclick inline
     let ctrlEl = document.createElement('div');
     ctrlEl.className = 'cart-qty-ctrl';
     ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
@@ -418,7 +410,6 @@ function renderizarCarrinho(tabelaAtiva) {
     ctrlEl.appendChild(inputQty);
     ctrlEl.appendChild(btnMais);
 
-    // Botão remover
     let rmBtn = document.createElement('button');
     rmBtn.className = 'cart-rm-btn';
     rmBtn.title = 'Remover';
@@ -430,7 +421,6 @@ function renderizarCarrinho(tabelaAtiva) {
 
     div.appendChild(imgEl);
 
-    // Wrapper direito: info + controles + botão remover
     let rightEl = document.createElement('div');
     rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
 
@@ -446,7 +436,6 @@ function renderizarCarrinho(tabelaAtiva) {
     hd.appendChild(div);
   });
 
-  // Restaura scroll
   hd.scrollTop = scrollTop;
 
   let rh = document.getElementById('cart-header-resumo');
@@ -515,64 +504,62 @@ function calcularTudo() {
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela = icmsBase === "7" ? 5000 : 2500;
   let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
-  let tabelaAtiva = (liquidoPrevia <= limiteTabela)
-    ? tabelaBase
-    : (icmsBase === "7" ? "M26072" : "M26122");
 
-  let subtotalBrutoInicial = somarBrutoPrevia();
+  let usaTabelaMaior = false;
+  if (liquidoPrevia > limiteTabela) { usaTabelaMaior = true; }
+  let tabelaAtual = usaTabelaMaior ? (icmsBase === "7" ? "M26072" : "M26122") : tabelaBase;
 
-  let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
-
-  Object.keys(SELECIONADOS).forEach(c => {
-    let item = SELECIONADOS[c];
+  let subtotalProdutos = 0, totalIpi = 0, listaItensPdf = [];
+  
+  Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto, qty = item.qtd;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
-    let totalItemOriginal = precoUnit * qty;
-    subtotalProdutos += totalItemOriginal;
-    contItens += qty;
-
-    let valorComDescontoPrazo = precoUnit * pctPrazo;
-    let valorIpiCada = valorComDescontoPrazo * (p.ipi / 100);
-    let valorItemComIpi = valorComDescontoPrazo + valorIpiCada;
-    let valorTotalItemDescIpi = valorItemComIpi * qty;
-    totalIpi += (valorIpiCada * qty);
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtual] || 0) : (p.precos[tabelaAtual] || 0);
+    subtotalProdutos += precoUnit * qty;
+    let valorComDesc = precoUnit * pctPrazo;
+    let descItem = precoUnit - valorComDesc;
+    let ipiVal = valorComDesc * (p.ipi / 100);
+    totalIpi += (ipiVal * qty);
 
     listaItensPdf.push({
-      fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
-      valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
-      valorComIpi: valorItemComIpi,
-      valorTotalItem: valorTotalItemDescIpi,
-      valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      fotoLarguraAumento: 1.50,
-      quebraTextoDescricao: true,
-      colunaDescricaoLargura: "menor"
+      fotoId: p.fileId || '',
+      referencia: p.codigo,
+      descricao: p.descricao,
+      qtd: qty,
+      precoPrazo: valorComDesc.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      valorIpiStr: ipiVal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) + ` (${p.ipi}%)`,
+      precoIpiStr: (valorComDesc + ipiVal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }),
+      totalLiquidoStr: ((valorComDesc + ipiVal) * qty).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
     });
   });
 
-  // Renderiza o carrinho separadamente
-  renderizarCarrinho(tabelaAtiva);
+  let valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo);
+  let totalComImpostos = (subtotalProdutos - valDescPrazo) + totalIpi;
+  let freteVal = 0, fInfo = "";
 
-  document.getElementById('badge').innerText = `${contItens} itens`;
-  document.getElementById('badge').style.display = contItens > 0 ? 'inline-block' : 'none';
-  document.getElementById('cart-count').innerText = Object.keys(SELECIONADOS).length;
-  document.getElementById('cart-count-m').innerText = Object.keys(SELECIONADOS).length;
+  let configFrete = FRETE_REGRAS[uf] || null;
+  if (configFrete) {
+    if (subtotalProdutos < configFrete.pedidoMinimo) {
+      fInfo = `<span style="color:red;font-weight:bold;">Mínimo não atingido (Faltam ${formatDin(configFrete.pedidoMinimo - subtotalProdutos)})</span>`;
+    } else if (subtotalProdutos >= configFrete.gratis) {
+      fInfo = "CIF (Grátis)";
+    } else {
+      freteVal = configFrete.intervalo;
+      fInfo = `FOB (Adicional ${formatDin(freteVal)}) — <span style="font-size:11px;color:var(--verde);">Faltam ${formatDin(configFrete.gratis - subtotalProdutos)} p/ CIF</span>`;
+    }
+  } else { fInfo = "Regra não cadastrada"; }
 
-  let valDescPrazo = 0;
-  if (prazoBase > 0) { valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo); }
-  let subtotalLiquidoParcial = (subtotalProdutos - valDescPrazo) + totalIpi;
-
-  let freteVal = 0, configFrete = FRETE_REGRAS[uf] || null;
-  if (configFrete && subtotalBrutoInicial < configFrete.pedidoMinimo) freteVal = -1;
-  else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
-
-  let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
+  let totalLiquido = totalComImpostos + (freteVal > 0 ? freteVal : 0);
   let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
     tipoAcao: '',
     logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
-    codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
-    clienteInfo: '', observacoes: '',
+    codigoRepre: CODIGO_REPRE,
+    prazo: prazoTexto,
+    estado: uf,
+    itens: listaItensPdf,
+    clienteInfo: '',
+    observacoes: '',
     contas: {
       subtotal: subtotalProdutos,
       pctPrazo: prazoBase,
@@ -588,55 +575,77 @@ function calcularTudo() {
       valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
-    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
-    layoutAjustes: {
-      colunaFotoLarguraAumento: 1.50,
-      colunaDescricaoMenor: true,
-      quebraTextoDescricao: true
-    }
+    tabelaAtiva: tabelaAtual
   };
 
-  const upd = (prefix) => {
-    document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
-    // Subtotal exibe o valor já com desconto do prazo aplicado
-    document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
-    document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
-    document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
-    document.getElementById(prefix + '-ipi-val').innerText = '+ ' + formatDin(totalIpi);
-    let fLabel = document.getElementById(prefix + '-frete-val');
-    if (!uf) fLabel.innerText = "Selecione o Estado";
-    else if (freteVal === -1) { fLabel.innerText = `Falta ${formatDin(configFrete.pedidoMinimo - subtotalBrutoInicial)}`; fLabel.style.color = 'red'; }
-    else { fLabel.innerText = freteVal === 0 ? "GRÁTIS" : formatDin(freteVal); fLabel.style.color = ''; }
-    document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
-  };
-  upd('rd'); upd('rm');
-  // Rerenderiza os cards para atualizar preços conforme tabela/estado
-  filtrar();
+  ['res-sub-d'].forEach(id => document.getElementById(id).innerText = formatDin(subtotalProdutos));
+  ['res-prazo-d'].forEach(id => document.getElementById(id).innerText = `- ${formatDin(valDescPrazo)}`);
+  ['res-ipi-d'].forEach(id => document.getElementById(id).innerText = `+ ${formatDin(totalIpi)}`);
+  ['res-frete-d'].forEach(id => document.getElementById(id).innerHTML = fInfo);
+  ['res-total-d'].forEach(id => document.getElementById(id).innerText = formatDin(totalLiquido));
 
-  let mb = document.getElementById('mb-info');
-  mb.innerHTML = contItens === 0 ? 'Selecione produtos' : `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
-
-  let lib = contItens > 0 && uf !== "" && freteVal !== -1;
-  document.getElementById('btn-orc-d').disabled = !lib;
-  document.getElementById('btn-orc-m').disabled = !lib;
-  document.getElementById('btn-baixar-d').disabled = contItens === 0;
-  document.getElementById('btn-baixar-m').disabled = contItens === 0;
+  let idsB = ['btn-disolle-d'];
+  if (configFrete && subtotalProdutos < configFrete.pedidoMinimo && subtotalProdutos > 0) {
+    idsB.forEach(id => { document.getElementById(id).disabled = true; document.getElementById(id).classList.remove('liberado'); });
+  } else if (subtotalProdutos > 0) {
+    idsB.forEach(id => { document.getElementById(id).disabled = false; document.getElementById(id).classList.add('liberado'); });
+  } else {
+    idsB.forEach(id => { document.getElementById(id).disabled = true; document.getElementById(id).classList.remove('liberado'); });
+  }
+  
+  renderizarCarrinho(tabelaAtual);
+  filtrar(); 
 }
 
 // =============================================
-// CLIENTES — BUSCA E CADASTRO
+// NOVO CLIENTE / CADASTRO 
 // =============================================
-function verificarNovoClienteExistente(cnpj) {
-  if (!cnpj) return;
-  let cLimpo = cnpj.replace(/\D/g, '').trim();
-  let c = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cLimpo);
-  if (c) {
-    alert("⚠️ ALERTA IMPEDITIVO: Este CNPJ já existe cadastrado na planilha! Não é permitido criar duplicados.");
-    ['razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
-      document.getElementById('nc-' + f).value = c[f] || '';
-    });
-    BLOQUEIA_SALVAMENTO_CNPJ = true;
+function formatarCNPJ(input) {
+  let v = input.value.replace(/\D/g, '');
+  if (v.length > 14) v = v.slice(0, 14);
+  v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+  v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+  v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+  v = v.replace(/(\d{4})(\d)/, '$1-$2');
+  input.value = v;
+
+  if (v.replace(/\D/g, '').length === 14) {
+    let loader = document.getElementById('nc-loader');
+    loader.style.display = 'inline-block';
     document.getElementById('btn-salvar-nc').disabled = true;
+    BLOQUEIA_SALVAMENTO_CNPJ = true;
+
+    fetch(`https://brasilapi.com.br/api/cnpj/v1/${v.replace(/\D/g, '')}`)
+      .then(r => r.json())
+      .then(d => {
+        loader.style.display = 'none';
+        if (d.message) {
+          alert("Erro Receita: " + d.message);
+          return;
+        }
+        document.getElementById('nc-razao').value = d.razao_social || '';
+        document.getElementById('nc-fantasia').value = d.nome_fantasia || '';
+        document.getElementById('nc-telefone').value = d.ddd_telefone_1 || d.ddd_telefone_2 || '';
+        document.getElementById('nc-endereco').value = (d.descricao_tipo_de_logradouro ? d.descricao_tipo_de_logradouro + ' ' : '') + (d.logradouro || '');
+        document.getElementById('nc-estado').value = d.uf || '';
+        document.getElementById('nc-bairro').value = d.bairro || '';
+        document.getElementById('nc-municipio').value = d.municipio || '';
+        document.getElementById('nc-numero').value = d.numero || '';
+        document.getElementById('nc-cep').value = d.cep || '';
+        
+        let dup = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === v.replace(/\D/g, ''));
+        if (dup) {
+          alert("⚠️ Este CNPJ já está cadastrado na sua carteira!");
+        } else {
+          BLOQUEIA_SALVAMENTO_CNPJ = false;
+          document.getElementById('btn-salvar-nc').disabled = false;
+        }
+      })
+      .catch(e => {
+        loader.style.display = 'none';
+        BLOQUEIA_SALVAMENTO_CNPJ = false;
+        document.getElementById('btn-salvar-nc').disabled = false;
+      });
   } else {
     BLOQUEIA_SALVAMENTO_CNPJ = false;
     document.getElementById('btn-salvar-nc').disabled = false;
@@ -669,7 +678,6 @@ function salvarNovoCliente() {
     alert("❌ Operação abortada! CNPJ duplicado na base de dados.");
     return;
   }
-
   let c = {
     cnpj: cCnpj,
     razao: document.getElementById('nc-razao').value,
@@ -682,83 +690,70 @@ function salvarNovoCliente() {
     numero: document.getElementById('nc-numero').value,
     cep: document.getElementById('nc-cep').value
   };
+  if (!c.cnpj || !c.razao) { alert("CNPJ e Razão Social são obrigatórios."); return; }
 
-  if (!c.cnpj || !c.razao) { alert("Preencha obrigatoriamente CNPJ e Razão Social."); return; }
+  let btn = document.getElementById('btn-salvar-nc');
+  btn.innerText = "Salvando...";
+  btn.disabled = true;
 
-  document.getElementById('loading-modal').style.display = 'flex';
-  document.getElementById('loading-modal').classList.add('open');
-
-  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'salvar_cliente', cliente: c }) })
-    .then(r => r.json()).then(res => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      if (res.status === 'success') {
-        CLIENTES.push(c);
-        showToast("✅ Cliente salvo com sucesso!");
-        fecharModalNovoCliente();
-        if (Object.keys(SELECIONADOS).length > 0) {
-          document.getElementById('modal-cliente').style.display = 'flex';
-          document.getElementById('modal-cliente').classList.add('open');
-          ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
-            document.getElementById('cli-' + f).value = c[f] || '';
-          });
-        }
-      } else { alert(res.message); }
-    }).catch(() => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      alert("Erro de conexão.");
-    });
+  fetch(URL_GOOGLE_SCRIPT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ acao: 'salvar_cliente', repre: CODIGO_REPRE, cliente: c })
+  })
+  .then(r => r.json())
+  .then(res => {
+    if (res.status === 'success') {
+      CLIENTES.push(c);
+      fecharModalNovoCliente();
+      showToast("✅ Cliente salvo com sucesso!");
+      setTimeout(() => {
+        abrirModalCliente();
+        document.getElementById('cli-cnpj').value = c.cnpj;
+        buscarClienteAoDigitar(c.cnpj);
+      }, 500);
+    } else { alert("Erro ao salvar cliente."); }
+  })
+  .catch(e => { alert("Falha na conexão."); })
+  .finally(() => {
+    btn.innerText = "Salvar e Continuar";
+    btn.disabled = false;
+  });
 }
 
-function abrirModalBuscarCliente() {
-  document.getElementById('input-busca-cliente').value = '';
-  document.getElementById('lista-busca-clientes').innerHTML = '<div class="vazio">Digite CNPJ, Fantasia ou Cidade para pesquisar...</div>';
-  document.getElementById('modal-buscar-cliente').style.display = 'flex';
-  document.getElementById('modal-buscar-cliente').classList.add('open');
+// =============================================
+// LISTA DE CLIENTES (CONSULTA RÁPIDA)
+// =============================================
+function abrirModalListaClientes() {
+  document.getElementById('modal-lista-clientes').style.display = 'flex';
+  document.getElementById('modal-lista-clientes').classList.add('open');
+  renderizarListaClientes(CLIENTES);
 }
 
-function fecharModalBuscarCliente() {
-  document.getElementById('modal-buscar-cliente').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-buscar-cliente').style.display = 'none', 300);
+function fecharModalListaClientes() {
+  document.getElementById('modal-lista-clientes').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-lista-clientes').style.display = 'none', 300);
 }
 
-function fecharModalDetalhesCliente() {
-  document.getElementById('modal-detalhes-cliente').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-detalhes-cliente').style.display = 'none', 300);
+function filtrarListaClientes() {
+  let b = document.getElementById('busca-cliente').value.toLowerCase();
+  let f = CLIENTES.filter(c => (c.fantasia || '').toLowerCase().includes(b) || (c.razao || '').toLowerCase().includes(b) || (c.cnpj || '').includes(b));
+  renderizarListaClientes(f);
 }
 
-function executarBuscaCliente() {
-  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
-  if (!v) { alert("Digite algum parâmetro para pesquisar."); return; }
-
-  document.getElementById('loading-modal').style.display = 'flex';
-  document.getElementById('loading-modal').classList.add('open');
-
-  setTimeout(() => {
-    filtrarClientesBusca();
-    document.getElementById('loading-modal').classList.remove('open');
-    document.getElementById('loading-modal').style.display = 'none';
-  }, 300);
-}
-
-function filtrarClientesBusca() {
-  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
-  let container = document.getElementById('lista-busca-clientes');
+function renderizarListaClientes(lista) {
+  let container = document.getElementById('container-lista-clientes');
   container.innerHTML = '';
+  document.getElementById('conteudo-detalhes-cliente').innerHTML = '<div style="color:var(--sub);font-size:12px;text-align:center;margin-top:20px;">Selecione um cliente para ver os detalhes</div>';
 
-  let filtrados = CLIENTES.filter(c =>
-    (c.cnpj || '').toLowerCase().includes(v) ||
-    (c.fantasia || '').toLowerCase().includes(v) ||
-    (c.razao || '').toLowerCase().includes(v) ||
-    (c.municipio || '').toLowerCase().includes(v)
-  );
+  if (lista.length === 0) {
+    container.innerHTML = '<div style="padding:15px;color:var(--sub);font-size:13px;text-align:center;">Nenhum cliente encontrado.</div>';
+    return;
+  }
 
-  if (filtrados.length === 0) { container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>'; return; }
-
-  filtrados.forEach(c => {
+  lista.forEach(c => {
     let d = document.createElement('div');
-    d.className = 'sel-row';
+    d.style.borderBottom = '1px solid var(--borda)';
     d.style.cursor = 'pointer';
     d.style.padding = '10px';
     d.onclick = () => mostrarFichaCompletaCliente(c);
@@ -783,40 +778,24 @@ function mostrarFichaCompletaCliente(c) {
     <div style="margin-bottom:6px;"><b>NÚMERO:</b> ${c.numero || '-'}</div>
     <div style="margin-bottom:6px;"><b>CEP:</b> ${c.cep || '-'}</div>
   `;
-
-  let btnUsar = document.getElementById('btn-selecionar-cliente-busca');
-  btnUsar.style.display = 'block';
-  
-  btnUsar.onclick = () => {
-    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email'].forEach(f => {
-      let input = document.getElementById('cli-' + f);
-      if (input) input.value = c[f] || '';
-    });
-    
-    if(c.estado) {
-      let estadoUpper = c.estado.toUpperCase().trim();
-      let optD = document.querySelector(`#uf-d option[value="${estadoUpper}"]`);
-      if(optD) {
-        document.getElementById('uf-d').value = estadoUpper;
-        document.getElementById('uf-m').value = estadoUpper;
-        calcularTudo();
-      }
-    }
-
-    fecharModalDetalhesCliente();
-    fecharModalBuscarCliente();
-    showToast("✅ Cliente vinculado! Adicione os itens e finalize.");
+  let btnCopiar = document.createElement('button');
+  btnCopiar.className = 'btn sec';
+  btnCopiar.style.marginTop = '15px';
+  btnCopiar.style.width = '100%';
+  btnCopiar.innerText = 'Copiar CNPJ para Pedido';
+  btnCopiar.onclick = () => {
+    fecharModalListaClientes();
+    abrirModalCliente();
+    document.getElementById('cli-cnpj').value = c.cnpj;
+    buscarClienteAoDigitar(c.cnpj);
   };
-
-  document.getElementById('modal-detalhes-cliente').style.display = 'flex';
-  document.getElementById('modal-detalhes-cliente').classList.add('open');
+  document.getElementById('conteudo-detalhes-cliente').appendChild(btnCopiar);
 }
 
 // =============================================
-// PDF E ENVIO DE PEDIDOS
+// FINALIZAÇÃO DE PEDIDO & GERAÇÃO DE PDF
 // =============================================
-function abrirFluxoFechamento(t) {
-  fecharSheet();
+function abrirModalCliente() {
   document.getElementById('modal-cliente').style.display = 'flex';
   document.getElementById('modal-cliente').classList.add('open');
 }
@@ -826,434 +805,97 @@ function fecharModalCliente() {
   setTimeout(() => document.getElementById('modal-cliente').style.display = 'none', 300);
 }
 
-function clicouForaCliente(e) { if (e.target === document.getElementById('modal-cliente')) fecharModalCliente(); }
-
 function confirmarSalvamentoPedido() {
-  let cnpj = document.getElementById('cli-cnpj').value;
-  let razao = document.getElementById('cli-razao').value;
-  if (!cnpj || !razao) { alert("Preencha o CNPJ e a Razão Social para prosseguir."); return; }
+  let f_cnpj = document.getElementById('cli-cnpj').value.trim();
+  let f_razao = document.getElementById('cli-razao').value.trim();
+  if (!f_cnpj || !f_razao) { alert("Preencha CNPJ e Razão Social para gerar o pedido."); return; }
 
-  let obs = document.getElementById('cli-obs').value.trim();
-  let strCli = `CNPJ/CPF: ${cnpj}\nRazão Social: ${razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`;
+  let cInfo = `CNPJ/CPF: ${f_cnpj}\nRazão Social: ${f_razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`;
 
-  DADOS_PDF_PRONTO.clienteInfo = strCli;
-  DADOS_PDF_PRONTO.observacoes = obs;
-  DADOS_PDF_PRONTO.tipoAcao = 'enviar';
-  DADOS_PDF_PRONTO.cliente = {
-    cnpj, razao,
-    fantasia: document.getElementById('cli-fantasia').value,
-    telefone: document.getElementById('cli-telefone').value,
-    endereco: document.getElementById('cli-endereco').value,
-    estado: document.getElementById('cli-estado').value,
-    bairro: document.getElementById('cli-bairro').value,
-    municipio: document.getElementById('cli-municipio').value,
-    numero: document.getElementById('cli-numero').value,
-    cep: document.getElementById('cli-cep').value,
-    email: document.getElementById('cli-email').value,
-    obs
-  };
+  DADOS_PDF_PRONTO.clienteInfo = cInfo;
+  DADOS_PDF_PRONTO.observacoes = document.getElementById('cli-obs').value.trim();
 
   fecharModalCliente();
+  fecharCarrinho();
+  
+  if (DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') {
+    document.getElementById('loading-txt').innerText = "Enviando Pedido Oficial...";
+  } else {
+    document.getElementById('loading-txt').innerText = "Gerando PDF...";
+  }
   document.getElementById('loading-modal').style.display = 'flex';
   document.getElementById('loading-modal').classList.add('open');
 
-  let payloadPlanilha = {
-    acao: 'pedido',
-    qtd: document.getElementById('cart-count').innerText,
-    subtotalProdutos: DADOS_PDF_PRONTO.contas.subtotal,
-    totalIpi: DADOS_PDF_PRONTO.contas.totalIpi,
-    totalDescontos: DADOS_PDF_PRONTO.contas.valPrazo,
-    prazo: DADOS_PDF_PRONTO.prazo,
-    total: DADOS_PDF_PRONTO.contas.liquido,
-    clienteInfo: strCli + (obs ? "\nObs: " + obs : ""),
-    itens: JSON.stringify(DADOS_PDF_PRONTO.itens.map(x => `${x.codigo} (${x.qtd}cx)`))
-  };
+  ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
+    document.getElementById(id).classList.remove('liberado');
+    document.getElementById(id).disabled = true;
+  });
 
-  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify(payloadPlanilha) })
-    .then(() => fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) }))
-    .then(r => r.json())
-    .then(res => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      if (res.status === 'success') {
-        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
-        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
-        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
-          document.getElementById(id).classList.add('liberado');
-          document.getElementById(id).disabled = false;
-        });
-        document.getElementById('modal-sucesso').style.display = 'flex';
-        document.getElementById('modal-sucesso').classList.add('open');
-      } else { alert("Erro ao processar PDF: " + res.message); }
-    })
-    .catch(() => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      alert("Falha na comunicação geral da transação.");
-    });
+  fetch(URL_GOOGLE_SCRIPT, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO })
+  })
+  .then(res => res.json())
+  .then(res => {
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+
+    if (res.status === 'success' && res.base64) {
+      let f_razao_limpa = document.getElementById('cli-razao').value.trim() || 'SEM_RAZAO';
+      let nomeFinal = CODIGO_REPRE + '_' + f_razao_limpa.replace(/[^a-zA-Z0-9]/g, '_') + '.pdf';
+      let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
+
+      let a = document.createElement('a');
+      a.href = href;
+      a.download = nomeFinal;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
+        document.getElementById(id).classList.add('liberado');
+        document.getElementById(id).disabled = false;
+      });
+
+      document.getElementById('modal-sucesso').style.display = 'flex';
+      document.getElementById('modal-sucesso').classList.add('open');
+    } else {
+      alert("Erro ao processar PDF: " + res.message);
+    }
+  })
+  .catch((error) => {
+    console.error("Erro na requisição Fetch: ", error);
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+    alert("Falha na comunicação geral da transação. Verifique se o navegador está bloqueando a requisição.");
+  });
 }
 
 function acionarPdf(tipo) {
   if (!DADOS_PDF_PRONTO || DADOS_PDF_PRONTO.itens.length === 0) { alert("Carrinho vazio."); return; }
   DADOS_PDF_PRONTO.tipoAcao = tipo;
+
   if (tipo === 'baixar' && !DADOS_PDF_PRONTO.clienteInfo) {
     DADOS_PDF_PRONTO.clienteInfo = "Download Rápido - Sem dados cadastrais preenchidos";
   }
-  document.getElementById('loading-modal').style.display = 'flex';
-  document.getElementById('loading-modal').classList.add('open');
-  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) })
-    .then(r => r.json()).then(res => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      if (res.status === 'success') {
-        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
-        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
-        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        document.getElementById('modal-sucesso').style.display = 'flex';
-        document.getElementById('modal-sucesso').classList.add('open');
-      } else { alert("Erro ao processar operação: " + res.message); }
-    }).catch(() => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      alert("Falha de rede.");
-    });
+
+  document.getElementById('cli-cnpj').value = '';
+  document.getElementById('cli-razao').value = '';
+  document.getElementById('cli-fantasia').value = '';
+  document.getElementById('cli-telefone').value = '';
+  document.getElementById('cli-endereco').value = '';
+  document.getElementById('cli-estado').value = '';
+  document.getElementById('cli-bairro').value = '';
+  document.getElementById('cli-municipio').value = '';
+  document.getElementById('cli-numero').value = '';
+  document.getElementById('cli-cep').value = '';
+  document.getElementById('cli-email').value = '';
+  document.getElementById('cli-obs').value = '';
+
+  abrirModalCliente();
 }
 
-// =============================================
-// UPLOAD DE PDF MANUAL
-// =============================================
-function abrirModalUpload() {
-  document.getElementById('modal-upload').style.display = 'flex';
-  document.getElementById('modal-upload').classList.add('open');
-}
-function fecharModalUpload() {
-  document.getElementById('modal-upload').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-upload').style.display = 'none', 300);
-}
-
-function enviarPdfManual() {
-  let fileInput = document.getElementById('file-manual');
-  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
-  let file = fileInput.files[0];
-  let reader = new FileReader();
-  reader.onload = function (e) {
-    document.getElementById('loading-modal').style.display = 'flex';
-    document.getElementById('loading-modal').classList.add('open');
-    fetch(URL_GOOGLE_SCRIPT, {
-      method: 'POST',
-      body: JSON.stringify({
-        acao: 'upload_pdf_manual',
-        fileName: CODIGO_REPRE + " - Pedido Manual - " + file.name,
-        fileMimeType: file.type,
-        fileBase64: e.target.result
-      })
-    }).then(r => r.json()).then(res => {
-      fecharModalUpload();
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      if (res.status === 'success') {
-        document.getElementById('modal-sucesso').style.display = 'flex';
-        document.getElementById('modal-sucesso').classList.add('open');
-        fileInput.value = "";
-      } else { alert("Erro: " + res.message); }
-    }).catch(() => {
-      document.getElementById('loading-modal').classList.remove('open');
-      document.getElementById('loading-modal').style.display = 'none';
-      alert("Erro ao enviar.");
-    });
-  };
-  reader.readAsDataURL(file);
-}
-
-// =============================================
-// IMPORTAR PEDIDO VIA PDF (EDITAR PEDIDO)
-// Usa PDF.js localmente — sem API, sem custo
-// =============================================
-
-// Carrega PDF.js sob demanda (só quando precisar)
-function carregarPdfJs() {
-  return new Promise((resolve, reject) => {
-    if (window.pdfjsLib) { resolve(); return; }
-    let script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    script.onload = () => {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      resolve();
-    };
-    script.onerror = () => reject(new Error("Falha ao carregar leitor de PDF."));
-    document.head.appendChild(script);
-  });
-}
-
-// Extrai todo o texto do PDF página a página
-async function extrairTextoPdf(file) {
-  let arrayBuffer = await file.arrayBuffer();
-  let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  let textoTotal = '';
-  for (let i = 1; i <= pdf.numPages; i++) {
-    let page = await pdf.getPage(i);
-    let content = await page.getTextContent();
-    // Junta itens de texto com espaço, quebra de página entre páginas
-    let linhas = content.items.map(it => it.str).join(' ');
-    textoTotal += linhas + '\n';
-  }
-  return textoTotal;
-}
-
-// Parseia o texto extraído do PDF di solle para dados estruturados
-function parsearPedidoDiSolle(texto) {
-  let resultado = {
-    cliente: { cnpj:'', razao:'', fantasia:'', telefone:'', endereco:'',
-               estado:'', bairro:'', municipio:'', numero:'', cep:'', email:'', obs:'' },
-    prazo: '',
-    estado_destino: '',
-    itens: []
-  };
-
-  // Normaliza espaços múltiplos
-  let t = texto.replace(/\s+/g, ' ');
-
-  // ---- DADOS DO CLIENTE ----
-  let campo = (label, proxLabels) => {
-    let pattern = label + '\\s*[:\\-]?\\s*([\\s\\S]+?)(?=' + proxLabels + '|$)';
-    let m = t.match(new RegExp(pattern, 'i'));
-    return m ? m[1].trim().replace(/\s+/g, ' ') : '';
-  };
-
-  // CNPJ
-  let cnpjM = t.match(/CNPJ[\s\/CPF]*[:\-]?\s*([\d.\-\/]+)/i);
-  resultado.cliente.cnpj = cnpjM ? cnpjM[1].trim() : '';
-
-  // Razão Social
-  let razaoM = t.match(/Raz[aã]o Social[:\-]?\s*([^\n]+?)(?=Fantasia|Telefone|Endere)/i);
-  resultado.cliente.razao = razaoM ? razaoM[1].trim() : '';
-
-  // Fantasia
-  let fantasiaM = t.match(/Fantasia[:\-]?\s*([^\n]+?)(?=Telefone|Endere|CNPJ|$)/i);
-  resultado.cliente.fantasia = fantasiaM ? fantasiaM[1].trim() : '';
-
-  // Telefone
-  let telM = t.match(/Telefone[:\-]?\s*([\d\s\(\)\-]+?)(?=Endere|Estado|Bairro|CEP|$)/i);
-  resultado.cliente.telefone = telM ? telM[1].trim() : '';
-
-  // Endereço
-  let endM = t.match(/Endere[çc]o[:\-]?\s*([^\n]+?)(?=Estado|Bairro|Munic|N[uú]mero|CEP|$)/i);
-  resultado.cliente.endereco = endM ? endM[1].trim() : '';
-
-  // Estado
-  let estadoM = t.match(/Estado[:\-]?\s*([A-Z]{2})(?:\s|$)/i);
-  resultado.cliente.estado = estadoM ? estadoM[1].toUpperCase() : '';
-
-  // Bairro
-  let bairroM = t.match(/Bairro[:\-]?\s*([^\n]+?)(?=Munic|N[uú]mero|CEP|Estado|$)/i);
-  resultado.cliente.bairro = bairroM ? bairroM[1].trim() : '';
-
-  // Município
-  let munM = t.match(/Munic[íi]pio[:\-]?\s*([^\n]+?)(?=N[uú]mero|CEP|E-mail|Observa|Estado|$)/i);
-  resultado.cliente.municipio = munM ? munM[1].trim() : '';
-
-  // Número
-  let numM = t.match(/N[uú]mero[:\-]?\s*(\d+)/i);
-  resultado.cliente.numero = numM ? numM[1].trim() : '';
-
-  // CEP
-  let cepM = t.match(/CEP[:\-]?\s*([\d\-]+)/i);
-  resultado.cliente.cep = cepM ? cepM[1].trim() : '';
-
-  // Email
-  let emailM = t.match(/E-?mail[:\-]?\s*([\w.\-+]+@[\w.\-]+)/i);
-  resultado.cliente.email = emailM ? emailM[1].trim() : '';
-
-  // Observações
-  let obsM = t.match(/Observa[çc][oõ]es[:\-]?\s*([^\n]+?)(?=Estado Destino|Prazo|Foto|$)/i);
-  resultado.cliente.obs = obsM ? obsM[1].trim() : '';
-
-  // ---- ESTADO DESTINO e PRAZO ----
-  let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
-  resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
-
-  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|]+?)(?:\s*\||$)/i);
-  resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
-
-  // ---- ITENS ----
-  // Padrão de linha: CODIGO  DESCRICAO  QTD  ...
-  // Código Di Solle: 13 dígitos numéricos
-  let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z][^\d]+?)\s+(\d{1,4})\s+R\$/g)];
-  
-  if (linhasItens.length === 0) {
-    // Fallback: tenta 10+ dígitos seguidos de texto e quantidade
-    linhasItens = [...t.matchAll(/(\d{10,15})\s+\S[^\d]{5,80?}\s+(\d{1,4})\s+R\$/g)];
-    linhasItens.forEach(m => {
-      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[2]) });
-    });
-  } else {
-    linhasItens.forEach(m => {
-      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
-    });
-  }
-
-  // Remove duplicatas (mesmo código, soma qtds se aparecer mais de uma vez)
-  let itensMapa = {};
-  resultado.itens.forEach(it => {
-    if (itensMapa[it.codigo]) {
-      itensMapa[it.codigo].qtd += it.qtd;
-    } else {
-      itensMapa[it.codigo] = { ...it };
-    }
-  });
-  resultado.itens = Object.values(itensMapa);
-
-  return resultado;
-}
-
-async function importarPedidoPdf() {
-  let fileInput = document.getElementById('file-manual');
-  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
-  let file = fileInput.files[0];
-
-  fecharModalUpload();
-  document.getElementById('modal-importando').style.display = 'flex';
-  document.getElementById('modal-importando').classList.add('open');
-
-  try {
-    document.getElementById('import-status-txt').innerText = 'Carregando leitor de PDF...';
-    await carregarPdfJs();
-
-    document.getElementById('import-status-txt').innerText = 'Lendo o arquivo PDF...';
-    let texto = await extrairTextoPdf(file);
-
-    document.getElementById('import-status-txt').innerText = 'Identificando cliente e itens...';
-    let pedido = parsearPedidoDiSolle(texto);
-
-    if (pedido.itens.length === 0) {
-      throw new Error("Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
-    }
-
-    // Aguarda produtos carregados
-    if (PRODUTOS.length === 0) {
-      document.getElementById('import-status-txt').innerText = 'Carregando catálogo...';
-      await carregarDados();
-    }
-
-    // Preenche campos do cliente
-    let cli = pedido.cliente;
-    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
-      let el = document.getElementById('cli-' + f);
-      if (el && cli[f]) el.value = cli[f];
-    });
-
-    // Define UF destino
-    let uf = (pedido.estado_destino || cli.estado || '').toUpperCase().trim();
-    if (uf) {
-      let optD = document.querySelector(`#uf-d option[value="${uf}"]`);
-      if (optD) {
-        document.getElementById('uf-d').value = uf;
-        document.getElementById('uf-m').value = uf;
-      }
-    }
-
-    // Configura prazo
-    let prazoStr = pedido.prazo;
-    let avisos = [];
-    let prazoEncontrado = false;
-
-    if (prazoStr) {
-      // Procura em SUB_PRAZOS
-      for (let [val, opcoes] of Object.entries(SUB_PRAZOS)) {
-        if (opcoes.includes(prazoStr)) {
-          document.getElementById('prazo-d').value = val;
-          document.getElementById('prazo-m').value = val;
-          alterouPrazoBase('prazo-d', 'prazo-m');
-          setTimeout(() => {
-            ['subprazo-d','subprazo-m'].forEach(id => {
-              let sel = document.getElementById(id);
-              if (sel) for (let opt of sel.options) { if (opt.value === prazoStr) { sel.value = prazoStr; break; } }
-            });
-          }, 150);
-          prazoEncontrado = true;
-          break;
-        }
-      }
-      // Prazo simples
-      if (!prazoEncontrado) {
-        const MAP = { "28 DIAS":"9","35 DIAS":"7","42 DIAS":"5","56 DIAS":"2","63 DIAS":"0","ANTECIPADO":"14" };
-        if (MAP[prazoStr]) {
-          document.getElementById('prazo-d').value = MAP[prazoStr];
-          document.getElementById('prazo-m').value = MAP[prazoStr];
-          alterouPrazoBase('prazo-d', 'prazo-m');
-          prazoEncontrado = true;
-        }
-      }
-      if (!prazoEncontrado) {
-        avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente — selecione manualmente.`);
-      }
-    }
-
-    // Importa itens para SELECIONADOS
-    SELECIONADOS = {};
-    let itensImportados = 0;
-    let itensFaltantes = [];
-
-    pedido.itens.forEach(item => {
-      let codBusca = String(item.codigo).trim().toLowerCase();
-      let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBusca)
-               || PRODUTOS.find(p => p.codigo.replace(/^0+/,'') === codBusca.replace(/^0+/,''));
-
-      if (prod) {
-        let key = prod.codigo.toLowerCase().trim();
-        let qtdMin = prod.qtdEmbalagem || 1;
-        let qtd = parseInt(item.qtd) || qtdMin;
-        if (qtd % qtdMin !== 0) qtd = Math.ceil(qtd / qtdMin) * qtdMin;
-        SELECIONADOS[key] = { produto: prod, qtd };
-        itensImportados++;
-      } else {
-        itensFaltantes.push(item.codigo);
-      }
-    });
-
-    calcularTudo();
-
-    document.getElementById('modal-importando').classList.remove('open');
-    document.getElementById('modal-importando').style.display = 'none';
-    fileInput.value = '';
-
-    if (itensFaltantes.length > 0) {
-      avisos.push(`⚠️ ${itensFaltantes.length} item(ns) não encontrado(s) no catálogo: ${itensFaltantes.join(', ')}`);
-    }
-
-    document.getElementById('import-resumo-txt').innerText =
-      `${itensImportados} item(ns) carregado(s) com sucesso.\nCliente: ${cli.razao || '-'}\nPrazo: ${prazoStr || '-'}`;
-
-    let avisosEl = document.getElementById('import-avisos');
-    if (avisos.length > 0) {
-      avisosEl.innerHTML = avisos.map(a => `<div style="margin-bottom:4px;">${a}</div>`).join('');
-      avisosEl.style.display = 'block';
-    } else {
-      avisosEl.style.display = 'none';
-    }
-
-    document.getElementById('modal-importado').style.display = 'flex';
-    document.getElementById('modal-importado').classList.add('open');
-
-  } catch (err) {
-    document.getElementById('modal-importando').classList.remove('open');
-    document.getElementById('modal-importando').style.display = 'none';
-    alert("Erro ao importar pedido: " + err.message);
-  }
-}
-
-function fecharModalImportado() {
-  document.getElementById('modal-importado').classList.remove('open');
-  setTimeout(() => document.getElementById('modal-importado').style.display = 'none', 300);
-}
-
-// =============================================
-// NAVEGAÇÃO — MODAIS, SHEET E CARRINHO
-// =============================================
 function fecharModalSucesso() {
   document.getElementById('modal-sucesso').classList.remove('open');
   setTimeout(() => document.getElementById('modal-sucesso').style.display = 'none', 300);
@@ -1284,4 +926,258 @@ function abrirModalNovoCliente() {
 function fecharModalNovoCliente() {
   document.getElementById('modal-novo-cliente').classList.remove('open');
   setTimeout(() => document.getElementById('modal-novo-cliente').style.display = 'none', 300);
+  document.getElementById('nc-cnpj').value = '';
+  document.getElementById('nc-razao').value = '';
+  document.getElementById('nc-fantasia').value = '';
+  document.getElementById('nc-telefone').value = '';
+  document.getElementById('nc-endereco').value = '';
+  document.getElementById('nc-estado').value = '';
+  document.getElementById('nc-bairro').value = '';
+  document.getElementById('nc-municipio').value = '';
+  document.getElementById('nc-numero').value = '';
+  document.getElementById('nc-cep').value = '';
+}
+
+// =============================================
+// EDIÇÃO DE PEDIDOS ANTERIORES (LEITOR DE PDF)
+// =============================================
+
+function acionarImportacaoPdf() {
+  document.getElementById('input-importar-pdf').click();
+}
+
+async function processarArquivoPdf(event) {
+  let file = event.target.files[0];
+  if (!file) return;
+
+  if (file.type !== 'application/pdf') {
+    alert("Por favor, selecione um arquivo PDF.");
+    return;
+  }
+
+  document.getElementById('loading-txt').innerText = "Lendo PDF...";
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  try {
+    await garantirLeitorPdf();
+    let textoPdf = await extrairTextoPdf(file);
+    let dadosImportados = parsearPedidoDiSolle(textoPdf);
+
+    if (dadosImportados.itens.length === 0) {
+      alert("Nenhum item encontrado no PDF. Verifique se é um Pedido Di Solle válido.");
+    } else {
+      aplicarPedidoImportado(dadosImportados);
+      alert(`Pedido importado com sucesso!\nCliente: ${dadosImportados.cliente.razao}\nItens: ${dadosImportados.itens.length}`);
+    }
+  } catch (error) {
+    console.error(error);
+    alert("Erro ao importar pedido: " + error.message);
+  } finally {
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+    event.target.value = ''; // Reseta o input
+  }
+}
+
+// Garante que a biblioteca PDF.js esteja carregada
+function garantirLeitorPdf() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    let script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    script.onerror = () => reject(new Error("Falha ao carregar leitor de PDF."));
+    document.head.appendChild(script);
+  });
+}
+
+// Extrai todo o texto do PDF página a página
+async function extrairTextoPdf(file) {
+  let arrayBuffer = await file.arrayBuffer();
+  let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let textoTotal = '';
+
+  for (let i = 1; i <= pdf.numPages; i++) {
+    let page = await pdf.getPage(i);
+    let content = await page.getTextContent();
+    // Junta itens de texto com espaço, quebra de página entre páginas
+    let linhas = content.items.map(it => it.str).join(' ');
+    textoTotal += linhas + '\n';
+  }
+  return textoTotal;
+}
+
+// Parseia o texto extraído do PDF di solle para dados estruturados
+function parsearPedidoDiSolle(texto) {
+  let t = texto.replace(/\n/g, ' '); // lineariza tudo para facilitar busca por Regex
+  let resultado = {
+    cliente: {
+      cnpj: '', razao: '', fantasia: '', telefone: '', endereco: '',
+      estado: '', bairro: '', municipio: '', numero: '', cep: '', email: ''
+    },
+    itens: [],
+    estado_destino: '',
+    prazo: ''
+  };
+
+  // ---- CLIENTE ----
+  let mCnpj = t.match(/CNPJ\/CPF[:\|]\s*([\d\.\-\/]+)/i);
+  if (mCnpj) resultado.cliente.cnpj = mCnpj[1].trim();
+
+  let mRazao = t.match(/Razão Social[:\|]\s*(.+?)\s+Fantasia/i);
+  if (mRazao) resultado.cliente.razao = mRazao[1].trim();
+
+  let mFantasia = t.match(/Fantasia[:\|]\s*(.*?)\s+Telefone/i);
+  if (mFantasia) resultado.cliente.fantasia = mFantasia[1].trim();
+
+  let mTel = t.match(/Telefone[:\|]\s*(.+?)\s+Endereço/i);
+  if (mTel) resultado.cliente.telefone = mTel[1].trim();
+
+  let mEnd = t.match(/Endereço[:\|]\s*(.+?)\s+Estado:/i);
+  if (mEnd) resultado.cliente.endereco = mEnd[1].trim();
+
+  let mUf = t.match(/Estado[:\|]\s*([A-Z]{2})/i);
+  if (mUf) resultado.cliente.estado = mUf[1].trim();
+
+  let mBairro = t.match(/Bairro[:\|]\s*(.+?)\s+Município/i);
+  if (mBairro) resultado.cliente.bairro = mBairro[1].trim();
+
+  let mMun = t.match(/Município[:\|]\s*(.+?)\s+Número/i);
+  if (mMun) resultado.cliente.municipio = mMun[1].trim();
+
+  let mNum = t.match(/Número[:\|]\s*(.+?)\s+CEP/i);
+  if (mNum) resultado.cliente.numero = mNum[1].trim();
+
+  let mCep = t.match(/CEP[:\|]\s*(.+?)\s+E-mail/i);
+  if (mCep) resultado.cliente.cep = mCep[1].trim();
+
+  let mEmail = t.match(/E-mail[:\|]\s*([^\s]+)/i);
+  if (mEmail) resultado.cliente.email = mEmail[1].trim();
+
+  // ---- DESTINO e PRAZO ----
+  let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
+  resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
+
+  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|]+?)(?:\s*\||$)/i);
+  resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
+
+  // ---- ITENS ----
+  // Padrão de linha: CODIGO DESCRICAO QTD ...
+  // Código Di Solle: 13 dígitos numéricos
+  // Usamos (.*?) para aceitar letras, NÚMEROS e símbolos na descrição do produto
+  let linhasItens = [...t.matchAll(/(\d{13})\s+(.*?)\s+(\d{1,5})\s+R\$/g)];
+
+  if (linhasItens.length === 0) {
+    // Fallback super tolerante: Tenta códigos de 10 a 15 dígitos
+    linhasItens = [...t.matchAll(/(\d{10,15})\s+(.*?)\s+(\d{1,5})\s+R\$/g)];
+  }
+
+  linhasItens.forEach(m => {
+    resultado.itens.push({
+      codigo: m[1].trim(),
+      qtd: parseInt(m[3])
+    });
+  });
+
+  return resultado;
+}
+
+// Aplica os dados lidos do PDF no carrinho atual
+function aplicarPedidoImportado(dados) {
+  SELECIONADOS = {};
+  let avisos = [];
+
+  // Mapear Itens
+  dados.itens.forEach(itemPdf => {
+    let codBase = itemPdf.codigo.toLowerCase().trim();
+    let produtoEncontrado = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBase || (p.codigoEan && p.codigoEan.trim() === itemPdf.codigo.trim()));
+
+    if (produtoEncontrado) {
+      SELECIONADOS[codBase] = {
+        produto: produtoEncontrado,
+        qtd: itemPdf.qtd
+      };
+    } else {
+      avisos.push(`Produto cód ${itemPdf.codigo} não encontrado no catálogo.`);
+    }
+  });
+
+  // Mapear Estado
+  if (dados.estado_destino) {
+    let selectUf = document.getElementById('uf-d');
+    let optionExists = [...selectUf.options].some(opt => opt.value === dados.estado_destino);
+    if (optionExists) {
+      document.getElementById('uf-d').value = dados.estado_destino;
+      document.getElementById('uf-m').value = dados.estado_destino;
+    }
+  }
+
+  // Mapear Prazo (Tentativa de Match com as descrições no HTML)
+  let prazoStr = dados.prazo.replace(/ \(\-\d+%\)/g, '').trim(); // Remove " (-14%)" se houver
+  let prazoEncontrado = false;
+  
+  if (prazoStr) {
+    // Tenta encontrar em sub_prazos
+    for (const [base, subs] of Object.entries(SUB_PRAZOS)) {
+      if (subs.includes(prazoStr)) {
+        document.getElementById('prazo-d').value = base;
+        document.getElementById('prazo-m').value = base;
+        alterouPrazoBase('prazo-d', 'prazo-m');
+        
+        document.getElementById('subprazo-d').value = prazoStr;
+        document.getElementById('subprazo-m').value = prazoStr;
+        prazoEncontrado = true;
+        break;
+      }
+    }
+
+    // Prazo simples
+    if (!prazoEncontrado) {
+      const MAP = {
+        "28 DIAS":"9",
+        "35 DIAS":"7",
+        "42 DIAS":"5",
+        "56 DIAS":"2",
+        "63 DIAS":"0",
+        "ANTECIPADO":"14"
+      };
+      if (MAP[prazoStr]) {
+        document.getElementById('prazo-d').value = MAP[prazoStr];
+        document.getElementById('prazo-m').value = MAP[prazoStr];
+        alterouPrazoBase('prazo-d', 'prazo-m');
+        prazoEncontrado = true;
+      }
+    }
+
+    if (!prazoEncontrado) {
+      avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente — selecione manualmente.`);
+    }
+  }
+
+  // Preencher Cliente Invisível (para edição)
+  if (dados.cliente.cnpj) {
+    setTimeout(() => {
+      document.getElementById('cli-cnpj').value = dados.cliente.cnpj;
+      document.getElementById('cli-razao').value = dados.cliente.razao;
+      document.getElementById('cli-fantasia').value = dados.cliente.fantasia;
+      document.getElementById('cli-telefone').value = dados.cliente.telefone;
+      document.getElementById('cli-endereco').value = dados.cliente.endereco;
+      document.getElementById('cli-estado').value = dados.cliente.estado;
+      document.getElementById('cli-bairro').value = dados.cliente.bairro;
+      document.getElementById('cli-municipio').value = dados.cliente.municipio;
+      document.getElementById('cli-numero').value = dados.cliente.numero;
+      document.getElementById('cli-cep').value = dados.cliente.cep;
+      document.getElementById('cli-email').value = dados.cliente.email;
+    }, 500);
+  }
+
+  calcularTudo();
+
+  if (avisos.length > 0) {
+    alert("Avisos durante a importação:\n\n- " + avisos.join('\n- '));
+  }
 }
