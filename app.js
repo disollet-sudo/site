@@ -119,6 +119,7 @@ function filtrar() {
   let promo = document.getElementById('fil-promo').value;
   let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
 
+  // Calcula a tabela ativa da mesma forma que o modal e renderizar()
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
@@ -151,6 +152,8 @@ function limFiltros() {
 }
 
 function somarBrutoPrevia() {
+  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
+  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
@@ -272,6 +275,7 @@ function confirmarAddModal() {
 function limSel() { 
   SELECIONADOS = {}; 
   calcularTudo(); 
+  // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
@@ -337,6 +341,7 @@ function calcularTudo() {
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
   if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
 
+  // 1ª passagem: calcula o total líquido com a tabela BASE para decidir a tabela definitiva
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela = icmsBase === "7" ? 5000 : 2500;
   let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
@@ -345,6 +350,7 @@ function calcularTudo() {
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   let subtotalBrutoInicial = somarBrutoPrevia();
+
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
   let hd = document.getElementById('lista-d');
   hd.innerHTML = '';
@@ -368,7 +374,9 @@ function calcularTudo() {
       valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
       valorComIpi: valorItemComIpi, 
       valorTotalItem: valorTotalItemDescIpi,
+      // AJUSTADO: Força formatação com pontuação/separador de milhar pt-BR para a última coluna do PDF
       valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      // AJUSTADO: Parâmetros para indicar aumento de 50% na foto e quebra/compensação na coluna da descrição
       fotoLarguraAumento: 1.50,
       quebraTextoDescricao: true,
       colunaDescricaoLargura: "menor"
@@ -398,6 +406,8 @@ function calcularTudo() {
   else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
 
   let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
+  
+  // AJUSTADO: Novo cálculo do Valor de Produto (subtotal - prazo) solicitado para o bloco final do PDF
   let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
@@ -409,10 +419,11 @@ function calcularTudo() {
       subtotal: subtotalProdutos, 
       pctPrazo: prazoBase, 
       valPrazo: valDescPrazo, 
-      valorProduto: valorProdutoCalculado,
+      valorProduto: valorProdutoCalculado, // AJUSTADO: Novo campo estruturado
       totalIpi, 
       valorFrete: freteVal > 0 ? freteVal : 0, 
       liquido: totalLiquido,
+      // AJUSTADO: Versões textuais com pontuações de milhar garantidas para exibição do cabeçalho de totais
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -420,6 +431,7 @@ function calcularTudo() {
       valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
+    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
     layoutAjustes: {
       colunaFotoLarguraAumento: 1.50,
       colunaDescricaoMenor: true,
@@ -429,6 +441,7 @@ function calcularTudo() {
 
   const upd = (prefix) => {
     document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
+    // Subtotal exibe o valor já com desconto do prazo aplicado
     document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
     document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
     document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
@@ -440,6 +453,7 @@ function calcularTudo() {
     document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
   };
   upd('rd'); upd('rm');
+  // Rerenderiza os cards para atualizar preços conforme tabela/estado
   filtrar();
 
   let mb = document.getElementById('mb-info');
@@ -752,7 +766,7 @@ function acionarPdf(tipo) {
 }
 
 // =============================================
-// UPLOAD DE PDF MANUAL & EDIÇÃO DE PEDIDOS
+// UPLOAD DE PDF MANUAL
 // =============================================
 function abrirModalUpload() {
   document.getElementById('modal-upload').style.display = 'flex';
@@ -767,25 +781,17 @@ function enviarPdfManual() {
   let fileInput = document.getElementById('file-manual');
   if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
   let file = fileInput.files[0];
-  
-  // Tratamento de segurança adicionado para edição e upload de PDF (Aceita Qualquer Carácter e Números)
   let reader = new FileReader();
   reader.onload = function (e) {
     document.getElementById('loading-modal').style.display = 'flex';
     document.getElementById('loading-modal').classList.add('open');
-    
-    // Tratamento Robusto de Regex e Texto - Aplicado Globalmente ao Payload
-    let safeBase64 = e.target.result;
-    
     fetch(URL_GOOGLE_SCRIPT, {
       method: 'POST',
       body: JSON.stringify({
         acao: 'upload_pdf_manual',
-        // Adicionada camada extra para suportar edição e parsing de números no Backend
         fileName: CODIGO_REPRE + " - Pedido Manual - " + file.name,
         fileMimeType: file.type,
-        fileBase64: safeBase64,
-        allowParsingNumbers: true // Diretriz de segurança forçada para o Script aceitar números na descrição
+        fileBase64: e.target.result
       })
     }).then(r => r.json()).then(res => {
       fecharModalUpload();
@@ -796,14 +802,182 @@ function enviarPdfManual() {
         document.getElementById('modal-sucesso').classList.add('open');
         fileInput.value = "";
       } else { alert("Erro: " + res.message); }
-    }).catch((err) => {
+    }).catch(() => {
       document.getElementById('loading-modal').classList.remove('open');
       document.getElementById('loading-modal').style.display = 'none';
-      console.error("Falha ao abrir PDF para edição:", err);
-      alert("Erro ao enviar e editar pedido. Verifique o console.");
+      alert("Erro ao enviar.");
     });
   };
   reader.readAsDataURL(file);
+}
+
+// =============================================
+// EDITAR PEDIDO — IMPORTAR PDF E RECARREGAR CARRINHO
+// =============================================
+function editarPedido() {
+  let fileInput = document.getElementById('file-manual');
+  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
+  let file = fileInput.files[0];
+
+  // Mostra loading
+  let loadingDiv = document.getElementById('loading-import');
+  if (loadingDiv) { loadingDiv.style.display = 'flex'; }
+
+  // Carrega pdfjs dinamicamente se ainda não foi carregado
+  function runParse(pdfData) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    pdfjsLib.getDocument({ data: pdfData }).promise.then(function(pdf) {
+      let allTextPromises = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        allTextPromises.push(
+          pdf.getPage(i).then(page => page.getTextContent()).then(tc => tc.items.map(it => it.str).join(' '))
+        );
+      }
+      return Promise.all(allTextPromises);
+    }).then(function(pages) {
+      let textoCompleto = pages.join('\n');
+      let itensEncontrados = parsearItensDoPdf(textoCompleto);
+
+      if (loadingDiv) loadingDiv.style.display = 'none';
+
+      if (itensEncontrados.length === 0) {
+        alert("Erro ao importar pedido: Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
+        return;
+      }
+
+      // Limpa carrinho atual e recarrega com os itens do PDF
+      SELECIONADOS = {};
+      let naoEncontrados = [];
+
+      itensEncontrados.forEach(function(item) {
+        // Busca o produto pelo código (case-insensitive, ignora espaços)
+        let codBusca = item.codigo.toLowerCase().trim();
+        let produto = PRODUTOS.find(function(p) {
+          return p.codigo.toLowerCase().trim() === codBusca ||
+                 normalizarCodigo(p.codigo) === normalizarCodigo(item.codigo);
+        });
+
+        if (produto) {
+          let key = produto.codigo.toLowerCase().trim();
+          SELECIONADOS[key] = { produto: produto, qtd: item.qtd };
+        } else {
+          naoEncontrados.push(item.codigo);
+        }
+      });
+
+      fecharModalUpload();
+      calcularTudo();
+      mostrarToast("✅ Pedido importado! " + itensEncontrados.length + " iten(s) carregado(s)" + (naoEncontrados.length ? " | " + naoEncontrados.length + " não encontrado(s): " + naoEncontrados.join(', ') : "") + ".");
+
+    }).catch(function(err) {
+      if (loadingDiv) loadingDiv.style.display = 'none';
+      alert("Erro ao ler o PDF: " + err.message);
+    });
+  }
+
+  let reader = new FileReader();
+  reader.onload = function(e) {
+    let arrayBuffer = e.target.result;
+
+    if (typeof pdfjsLib !== 'undefined') {
+      runParse(arrayBuffer);
+    } else {
+      // Carrega pdfjs dinamicamente
+      let script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload = function() { runParse(arrayBuffer); };
+      script.onerror = function() {
+        if (loadingDiv) loadingDiv.style.display = 'none';
+        alert("Erro ao carregar leitor de PDF. Verifique sua conexão.");
+      };
+      document.head.appendChild(script);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function normalizarCodigo(cod) {
+  return String(cod).toLowerCase().replace(/\s+/g, '').replace(/\.0$/, '').trim();
+}
+
+function parsearItensDoPdf(texto) {
+  let itens = [];
+
+  // Estratégia: encontra linhas da tabela de itens do PDF Di Solle.
+  // A tabela tem colunas: Referência | Descrição | Qtd | ...
+  // O código do produto NÃO contém espaço (ex: M26071, 600567, AB123)
+  // A quantidade é um número inteiro que aparece DEPOIS da descrição completa
+  // O problema: descrições como "PARATY COMBO FACAS 72 PECAS A GRANEL BRANCO"
+  // têm números no meio — não podemos usar números como separador.
+
+  // Abordagem: extrai todas as referências conhecidas no PDF
+  // Padrão de código Di Solle: sequência alfanumérica sem espaço (letras+números)
+  // Seguida de texto de descrição (pode ter números), seguida de qtd inteira, seguida de valores R$
+
+  // Regex: captura (CODIGO)(DESCRIÇÃO com possíveis números)(QTD)(valor)
+  // Âncora: código é seguido de texto, a qtd é seguida de valor monetário (R$ ou número com vírgula)
+  // Usamos o padrão: CODIGO DESCRIÇÃO... QTD VALOR,NN
+  // onde CODIGO = word sem espaço, QTD = número inteiro antes de um valor com vírgula
+  
+  // Divide o texto em tokens e procura padrões de itens
+  // Padrão de um item no PDF Di Solle:
+  // [código] [descrição multipalavra possivelmente com números] [qtd] [valor com vírgula] ...
+
+  // Remove espaços múltiplos e quebras de linha desnecessárias
+  let texto_limpo = texto.replace(/\s+/g, ' ').trim();
+
+  // Estratégia principal: busca blocos que começam com um código de produto
+  // Os códigos Di Solle são tipicamente: só números (ex: 600567) ou letras+números sem espaço
+  // Após o código vem a descrição, depois a qtd (número inteiro), depois valor "X.XXX,XX" ou "X,XX"
+
+  // Regex robusta: captura código, depois tudo até encontrar padrão de (qtd inteira)(espaço)(valor R$ com vírgula)
+  // A qtd é o ÚLTIMO número inteiro antes de um valor monetário com vírgula
+  // Valor monetário: número com vírgula decimal tipo 1.234,56 ou 12,34
+  let reLinha = /([A-Za-z0-9]+(?:\.[0-9]+)?)\s+([A-ZÁÉÍÓÚÃÕÇÀ][\w\sÁÉÍÓÚÃÕÇÀáéíóúãõçà\/\-\.]*?)\s+(\d+)\s+[\d\.]+,\d{2}/g;
+
+  let match;
+  while ((match = reLinha.exec(texto_limpo)) !== null) {
+    let codigoCandidato = match[1];
+    let descricaoCandidata = match[2].trim();
+    let qtdCandidata = parseInt(match[3]);
+
+    // Filtra falsos positivos: código deve ter pelo menos 3 chars e a descrição pelo menos 3 palavras ou 10 chars
+    if (codigoCandidato.length < 3) continue;
+    if (descricaoCandidata.length < 5) continue;
+    // Ignora linhas de cabeçalho/totais
+    let descUpper = descricaoCandidata.toUpperCase();
+    if (descUpper.includes('REFERÊNCIA') || descUpper.includes('DESCRIÇÃO') || descUpper.includes('SUBTOTAL') || descUpper.includes('TOTAL') || descUpper.includes('FRETE') || descUpper.includes('IPI')) continue;
+    // Qtd deve ser razoável (entre 1 e 99999)
+    if (qtdCandidata < 1 || qtdCandidata > 99999) continue;
+    // Verifica se o código existe nos produtos carregados
+    let codNorm = normalizarCodigo(codigoCandidato);
+    let existeNoCatalogo = PRODUTOS.some(p => normalizarCodigo(p.codigo) === codNorm);
+    if (!existeNoCatalogo) continue;
+
+    // Evita duplicatas
+    if (!itens.find(i => normalizarCodigo(i.codigo) === codNorm)) {
+      itens.push({ codigo: codigoCandidato, qtd: qtdCandidata });
+    }
+  }
+
+  // Fallback: se não achou nada com a regex principal, tenta método mais simples
+  // (útil para PDFs com formatação diferente)
+  if (itens.length === 0) {
+    PRODUTOS.forEach(function(p) {
+      let codEscapado = p.codigo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // Busca código seguido de qualquer texto e depois um número inteiro
+      let reSimples = new RegExp(codEscapado + '\\s+[\\w\\s]+?\\s+(\\d+)\\s+[\\d\\.]+,\\d{2}', 'i');
+      let m = texto_limpo.match(reSimples);
+      if (m) {
+        let qtd = parseInt(m[1]);
+        if (qtd >= 1 && qtd <= 99999) {
+          itens.push({ codigo: p.codigo, qtd: qtd });
+        }
+      }
+    });
+  }
+
+  return itens;
 }
 
 // =============================================
