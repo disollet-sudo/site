@@ -36,19 +36,11 @@
 </div>
 
 <div class="modal" id="modal-upload" onclick="if(event.target===this) fecharModalUpload()">
-  <div class="modal-box" style="padding:24px;max-width:400px;text-align:center;position:relative;">
-    <h3 style="margin-bottom:8px;color:var(--verde-dk);font-size:16px;">📋 Subir Pedido Manual (PDF)</h3>
-    <p style="font-size:12px;color:var(--sub);margin-bottom:16px;">Selecione um PDF de pedido para enviá-lo à Di Solle ou importar os itens para edição.</p>
-    <input type="file" id="file-manual" accept=".pdf" style="margin-bottom:16px;width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
-    <!-- Loading interno -->
-    <div id="loading-import" style="display:none;position:absolute;inset:0;background:rgba(255,255,255,0.92);border-radius:14px;flex-direction:column;align-items:center;justify-content:center;z-index:10;">
-      <div class="modal-spin" style="display:block;margin-bottom:12px;"></div>
-      <div style="font-weight:bold;color:var(--verde-dk);font-size:14px;">Importando Pedido...</div>
-      <div style="font-size:12px;color:var(--sub);margin-top:6px;">Lendo o arquivo PDF...</div>
-    </div>
-    <button class="btn prim" onclick="enviarPdfManual()" style="width:100%;margin-bottom:8px;">🚀 Enviar para Di Solle</button>
-    <button class="btn" onclick="editarPedido()" style="width:100%;margin-bottom:0;background:#fff;color:var(--verde-dk);border-color:var(--verde);">✏️ Editar Pedido</button>
-    <button class="btn" style="margin-top:8px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
+  <div class="modal-box" style="padding:24px;max-width:400px;text-align:center;">
+    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;">⬆️ Subir Pedido Manual (PDF)</h3>
+    <input type="file" id="file-manual" accept=".pdf" style="margin-bottom:20px;width:100%;padding:10px;border:1px solid var(--borda);border-radius:8px;">
+    <button class="btn prim" onclick="enviarPdfManual()" style="width:100%;">🚀 Enviar para Di Solle</button>
+    <button class="btn" style="margin-top:12px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
   </div>
 </div>
 
@@ -96,15 +88,229 @@
 </div>
 
 <div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
-  <div class="modal-box" style="padding:20px;max-width:450px;max-height:85vh;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+  <div class="modal-box" style="padding:20px;max-width:480px;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;">
       <h3 style="color:var(--verde-dk);font-size:16px;display:flex;align-items:center;gap:6px;">🛒 Carrinho de Compras</h3>
       <button onclick="fecharCarrinho()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">✕</button>
     </div>
-    <div class="lista-sel" id="lista-d" style="border:none;"></div>
-    <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin-top:10px;margin-bottom:0;">🗑️ Esvaziar Carrinho</button>
+    <div id="lista-d-carrinho" style="overflow-y:auto;flex:1;padding-right:4px;"></div>
+    <!-- lista-d mantido oculto para compatibilidade com app.js -->
+    <div class="lista-sel" id="lista-d" style="display:none;border:none;"></div>
+    <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin-top:10px;margin-bottom:0;flex-shrink:0;">🗑️ Esvaziar Carrinho</button>
   </div>
 </div>
+
+<style>
+/* ── Itens do Carrinho Melhorado ── */
+.cart-item {
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:12px;
+  border:1px solid var(--borda, #e0e0e0);
+  border-radius:10px;
+  margin-bottom:10px;
+  background:#fff;
+}
+.cart-item-top {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+}
+.cart-item-desc {
+  font-size:13px;
+  font-weight:600;
+  color:#222;
+  line-height:1.45;
+  word-break:break-word;
+  white-space:normal;
+  flex:1;
+}
+.cart-item-cod {
+  font-size:11px;
+  color:#888;
+  margin-top:2px;
+}
+.cart-item-remove {
+  background:none;
+  border:none;
+  font-size:16px;
+  cursor:pointer;
+  color:#c0392b;
+  flex-shrink:0;
+  padding:2px 4px;
+  line-height:1;
+}
+.cart-item-bottom {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.cart-qty-controls {
+  display:flex;
+  align-items:center;
+  gap:4px;
+}
+.cart-qty-btn {
+  width:32px;
+  height:32px;
+  border-radius:8px;
+  border:1.5px solid var(--verde, #2e7d32);
+  background:#fff;
+  color:var(--verde-dk, #1b5e20);
+  font-size:18px;
+  font-weight:700;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;
+  flex-shrink:0;
+}
+.cart-qty-btn:active { background:#e8f5e9; }
+.cart-qty-input {
+  width:52px;
+  height:32px;
+  text-align:center;
+  font-size:15px;
+  font-weight:600;
+  border:1.5px solid var(--borda, #e0e0e0);
+  border-radius:8px;
+  padding:0 4px;
+  -moz-appearance:textfield;
+}
+.cart-qty-input::-webkit-outer-spin-button,
+.cart-qty-input::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+.cart-qty-input:focus { border-color:var(--verde, #2e7d32); outline:none; }
+.cart-item-price {
+  font-size:13px;
+  font-weight:700;
+  color:var(--verde-dk, #1b5e20);
+  white-space:nowrap;
+}
+.cart-vazio {
+  text-align:center;
+  color:#aaa;
+  padding:32px 0;
+  font-size:14px;
+}
+</style>
+
+<script>
+/* ── Sobrescreve renderização do carrinho ── */
+(function() {
+  /* Aguarda app.js carregar, depois sobrescreve abrirCarrinho */
+  function instalarCarrinhoMelhorado() {
+    if (typeof window._sel === 'undefined' && typeof window.sel === 'undefined') {
+      setTimeout(instalarCarrinhoMelhorado, 100);
+      return;
+    }
+
+    /* Referência à lista de selecionados — app.js pode usar "sel" ou "_sel" */
+    function getCarrinho() {
+      return window.sel || window._sel || [];
+    }
+
+    function formatBRL(v) {
+      return 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function renderCarrinhoMelhorado() {
+      const container = document.getElementById('lista-d-carrinho');
+      if (!container) return;
+      const carrinho = getCarrinho();
+      if (!carrinho || carrinho.length === 0) {
+        container.innerHTML = '<div class="cart-vazio">🛒 Carrinho vazio</div>';
+        return;
+      }
+      container.innerHTML = carrinho.map(function(item, idx) {
+        var preco = item.preco || item.price || item.valor || item.vl || 0;
+        var qty   = item.qty || item.quantidade || item.qtd || 1;
+        var desc  = item.desc || item.descricao || item.nome || item.name || '';
+        var cod   = item.cod || item.codigo || item.code || '';
+        var total = preco * qty;
+        return '<div class="cart-item" data-idx="'+idx+'">'
+          + '<div class="cart-item-top">'
+          +   '<div><div class="cart-item-desc">'+desc+'</div>'
+          +   '<div class="cart-item-cod">Cód: '+cod+'</div></div>'
+          +   '<button class="cart-item-remove" onclick="cartRemover('+idx+')" title="Remover">✕</button>'
+          + '</div>'
+          + '<div class="cart-item-bottom">'
+          +   '<div class="cart-qty-controls">'
+          +     '<button class="cart-qty-btn" onclick="cartAlterarQty('+idx+',-1)">−</button>'
+          +     '<input class="cart-qty-input" type="number" min="1" value="'+qty+'" '
+          +       'onchange="cartSetQty('+idx+',this.value)" onfocus="this.select()">'
+          +     '<button class="cart-qty-btn" onclick="cartAlterarQty('+idx+',1)">+</button>'
+          +   '</div>'
+          +   '<div class="cart-item-price">'+formatBRL(total)+'</div>'
+          + '</div>'
+          + '</div>';
+      }).join('');
+    }
+
+    /* Funções globais para os botões */
+    window.cartRemover = function(idx) {
+      var carr = getCarrinho();
+      if (!carr) return;
+      /* tenta chamar função nativa de remoção do app.js */
+      var item = carr[idx];
+      var cod = item && (item.cod || item.codigo || item.code);
+      if (cod && typeof window.removerItem === 'function') { window.removerItem(cod); }
+      else if (cod && typeof window.toggleSel === 'function') { window.toggleSel(cod); }
+      else { carr.splice(idx, 1); }
+      renderCarrinhoMelhorado();
+      if (typeof window.atualizarBadge === 'function') window.atualizarBadge();
+      if (typeof window.recalcular === 'function') window.recalcular();
+      if (typeof window.calcTotais === 'function') window.calcTotais();
+    };
+
+    window.cartAlterarQty = function(idx, delta) {
+      var carr = getCarrinho();
+      if (!carr || !carr[idx]) return;
+      var item = carr[idx];
+      var campo = item.qty !== undefined ? 'qty' : item.quantidade !== undefined ? 'quantidade' : 'qtd';
+      var novaQty = Math.max(1, (item[campo] || 1) + delta);
+      item[campo] = novaQty;
+      renderCarrinhoMelhorado();
+      if (typeof window.recalcular === 'function') window.recalcular();
+      if (typeof window.calcTotais === 'function') window.calcTotais();
+    };
+
+    window.cartSetQty = function(idx, val) {
+      var carr = getCarrinho();
+      if (!carr || !carr[idx]) return;
+      var item = carr[idx];
+      var campo = item.qty !== undefined ? 'qty' : item.quantidade !== undefined ? 'quantidade' : 'qtd';
+      var novaQty = Math.max(1, parseInt(val) || 1);
+      item[campo] = novaQty;
+      renderCarrinhoMelhorado();
+      if (typeof window.recalcular === 'function') window.recalcular();
+      if (typeof window.calcTotais === 'function') window.calcTotais();
+    };
+
+    /* Intercepta abertura do carrinho */
+    var _abrirCarrinhoOriginal = window.abrirCarrinho;
+    window.abrirCarrinho = function() {
+      if (_abrirCarrinhoOriginal) _abrirCarrinhoOriginal.apply(this, arguments);
+      /* Após o original abrir o modal, popula nossa lista melhorada */
+      setTimeout(renderCarrinhoMelhorado, 0);
+    };
+
+    /* Também renderiza se o modal já estiver aberto */
+    renderCarrinhoMelhorado();
+  }
+
+  /* Espera DOM + app.js */
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { setTimeout(instalarCarrinhoMelhorado, 200); });
+  } else {
+    setTimeout(instalarCarrinhoMelhorado, 200);
+  }
+})();
+</script>
 
 <header>
   <div class="header-inner">
