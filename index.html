@@ -96,74 +96,15 @@
 </div>
 
 <div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
-  <div class="modal-box" style="padding:20px;max-width:470px;max-height:88vh;display:flex;flex-direction:column;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;">
+  <div class="modal-box" style="padding:20px;max-width:450px;max-height:85vh;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
       <h3 style="color:var(--verde-dk);font-size:16px;display:flex;align-items:center;gap:6px;">🛒 Carrinho de Compras</h3>
       <button onclick="fecharCarrinho()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#666;">✕</button>
     </div>
-    <div class="lista-sel" id="lista-d" style="border:none;overflow-y:auto;flex:1;padding-right:2px;"></div>
-    <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin-top:10px;margin-bottom:0;flex-shrink:0;">🗑️ Esvaziar Carrinho</button>
+    <div class="lista-sel" id="lista-d" style="border:none;"></div>
+    <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin-top:10px;margin-bottom:0;">🗑️ Esvaziar Carrinho</button>
   </div>
 </div>
-
-<style>
-/* ── Carrinho melhorado ── */
-#lista-d .sel-row {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 8px;
-  padding: 12px !important;
-  border: 1px solid var(--borda, #e0e0e0) !important;
-  border-radius: 10px;
-  margin-bottom: 10px;
-  background: #fff;
-  align-items: stretch !important;
-}
-.cart-row-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-.cart-qty-wrap {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.cqb {
-  width: 32px; height: 32px;
-  border-radius: 8px;
-  border: 1.5px solid var(--verde, #2e7d32);
-  background: #fff;
-  color: var(--verde-dk, #1b5e20);
-  font-size: 20px; font-weight: 700;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; user-select: none;
-}
-.cqb:active { background: #e8f5e9; }
-.cqi {
-  width: 54px; height: 32px;
-  text-align: center;
-  font-size: 15px; font-weight: 600;
-  border: 1.5px solid var(--borda, #e0e0e0);
-  border-radius: 8px; padding: 0 4px;
-  -moz-appearance: textfield;
-}
-.cqi::-webkit-outer-spin-button,
-.cqi::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-.cqi:focus { border-color: var(--verde, #2e7d32); outline: none; }
-.cart-price {
-  font-size: 13px; font-weight: 700;
-  color: var(--verde-dk, #1b5e20);
-  white-space: nowrap;
-}
-.cart-desc {
-  font-size: 13px; font-weight: 600; color: #222;
-  line-height: 1.5; white-space: normal; word-break: break-word;
-}
-.cart-cod { font-size: 11px; color: #999; margin-top: 1px; }
-</style>
 
 <header>
   <div class="header-inner">
@@ -357,126 +298,5 @@
 <div class="toast" id="toast"></div>
 
 <script src="app.js"></script>
-<script>
-/* ── Melhoria do Carrinho: intercepta renderSel do app.js ── */
-(function () {
-  function esperar(fn) {
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', fn);
-    else fn();
-  }
-  esperar(function () { setTimeout(instalar, 80); });
-
-  function fmt(v) {
-    return 'R$\u00a0' + Number(v || 0).toLocaleString('pt-BR',
-      { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
-
-  function getSel()    { return window.sel || window._sel || window.carrinho || []; }
-  function getRecalc() { return window.recalcular || window.calcTotais || window.atualizarTotais || null; }
-  function getBadge()  { return window.atualizarBadge || window.updateBadge || null; }
-
-  function campoQty(item) {
-    if (item.qty        !== undefined) return 'qty';
-    if (item.qtd        !== undefined) return 'qtd';
-    if (item.quantidade !== undefined) return 'quantidade';
-    if (item.q          !== undefined) return 'q';
-    return 'qty';
-  }
-  function campoPreco(item) {
-    var keys = ['preco','price','valor','vl','vlr','unitario'];
-    for (var i = 0; i < keys.length; i++) { if (item[keys[i]] !== undefined) return item[keys[i]]; }
-    return 0;
-  }
-  function campoDesc(item) {
-    var keys = ['desc','descricao','nome','name','produto','descr'];
-    for (var i = 0; i < keys.length; i++) { if (item[keys[i]]) return item[keys[i]]; }
-    return '—';
-  }
-  function campoCod(item) {
-    var keys = ['cod','codigo','code','ref','sku'];
-    for (var i = 0; i < keys.length; i++) { if (item[keys[i]]) return item[keys[i]]; }
-    return '';
-  }
-
-  function render() {
-    var lista = document.getElementById('lista-d');
-    if (!lista) return;
-    var sel = getSel();
-    if (!sel || sel.length === 0) {
-      lista.innerHTML = '<div style="text-align:center;padding:32px 0;color:#aaa;">Carrinho vazio</div>';
-      return;
-    }
-    lista.innerHTML = sel.map(function (item, idx) {
-      var cq    = campoQty(item);
-      var qty   = item[cq] || 1;
-      var preco = campoPreco(item);
-      var desc  = campoDesc(item);
-      var cod   = campoCod(item);
-      var total = preco * qty;
-      return '<div class="sel-row" data-idx="' + idx + '">' +
-        '<div>' +
-          '<div class="cart-desc">' + desc + '</div>' +
-          (cod ? '<div class="cart-cod">Cód: ' + cod + '</div>' : '') +
-        '</div>' +
-        '<div class="cart-row-bottom">' +
-          '<div class="cart-qty-wrap">' +
-            '<button class="cqb" onclick="cartDelta(' + idx + ',-1)">&#8722;</button>' +
-            '<input class="cqi" type="number" min="1" value="' + qty + '" ' +
-              'onchange="cartSet(' + idx + ',this.value)" onfocus="this.select()">' +
-            '<button class="cqb" onclick="cartDelta(' + idx + ',1)">+</button>' +
-          '</div>' +
-          '<div class="cart-price">' + fmt(total) + '</div>' +
-          '<button onclick="cartRem(' + idx + ')" title="Remover" ' +
-            'style="background:none;border:none;color:#c0392b;font-size:16px;cursor:pointer;padding:0 4px;">&#10005;</button>' +
-        '</div>' +
-      '</div>';
-    }).join('');
-  }
-
-  function aplicar(idx, novaQty) {
-    var sel = getSel();
-    if (!sel || !sel[idx]) return;
-    sel[idx][campoQty(sel[idx])] = Math.max(1, parseInt(novaQty) || 1);
-    render();
-    var r = getRecalc(); if (r) r();
-    var b = getBadge();  if (b) b();
-  }
-
-  window.cartDelta = function (idx, d) {
-    var sel = getSel(); if (!sel || !sel[idx]) return;
-    aplicar(idx, (sel[idx][campoQty(sel[idx])] || 1) + d);
-  };
-  window.cartSet = function (idx, val) { aplicar(idx, val); };
-  window.cartRem = function (idx) {
-    var sel = getSel(); if (!sel || !sel[idx]) return;
-    var cod = campoCod(sel[idx]);
-    if (cod && typeof window.removerItem  === 'function') { window.removerItem(cod); }
-    else if (cod && typeof window.toggleSel === 'function') { window.toggleSel(cod); }
-    else { sel.splice(idx, 1); }
-    render();
-    var r = getRecalc(); if (r) r();
-    var b = getBadge();  if (b) b();
-  };
-
-  function instalar() {
-    var orig = window.abrirCarrinho;
-    window.abrirCarrinho = function () {
-      if (orig) orig.apply(this, arguments);
-      setTimeout(render, 0);
-    };
-    /* Se renderSel existir, envolve ela também */
-    var origRender = window.renderSel;
-    if (origRender) {
-      window.renderSel = function () {
-        origRender.apply(this, arguments);
-        var m = document.getElementById('modal-carrinho');
-        if (m && (m.classList.contains('ativo') || m.style.display !== 'none')) {
-          setTimeout(render, 0);
-        }
-      };
-    }
-  }
-})();
-</script>
 </body>
 </html>
