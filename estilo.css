@@ -332,11 +332,11 @@ header{
 /* Seção de configuração (UF + Prazo) */
 .painel-config{
   flex-shrink:0;
-  padding:12px 14px;
+  padding:10px 14px;
   border-bottom:1px solid var(--borda);
   display:flex;
   flex-direction:column;
-  gap:8px;
+  gap:6px;
   background:#fafaf9;
 }
 .painel-config .field{margin-bottom:0}
@@ -346,12 +346,17 @@ header{
   margin-bottom:3px;display:block;
 }
 .painel-config .field select{
-  width:100%;padding:7px 9px;
+  width:100%;padding:6px 8px;
   border:1px solid var(--borda);border-radius:6px;
   font-size:12px;background:#fff;color:var(--texto);
   outline:none;
 }
 .painel-config .field select:focus{border-color:var(--verde)}
+.painel-config-row{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+}
 
 /* Totais */
 .painel-totais{
