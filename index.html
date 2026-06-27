@@ -9,6 +9,8 @@
 </head>
 <body>
 
+<!-- ── MODAIS ──────────────────────────────────── -->
+
 <div class="modal" id="modal-repre">
   <div class="modal-box" style="padding:24px;max-width:400px;height:auto;justify-content:center;align-items:center;text-align:center;">
     <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;">👤 Informe seu Código de Representante</h3>
@@ -44,11 +46,10 @@
       <button class="btn prim" onclick="enviarPdfManual()" style="margin:0;">🚀 Enviar para Di Solle</button>
       <button class="btn" onclick="importarPedidoPdf()" style="margin:0;background:var(--verde-lt);color:var(--verde-dk);border-color:var(--verde);font-weight:700;">✏️ Editar Pedido</button>
     </div>
-    <button class="btn" style="margin-top:12px;margin-bottom:0;background:none;border:none;border-color:transparent;" onclick="fecharModalUpload()">Cancelar</button>
+    <button class="btn" style="margin-top:12px;margin-bottom:0;background:none;border:none;" onclick="fecharModalUpload()">Cancelar</button>
   </div>
 </div>
 
-<!-- Modal de importação de pedido -->
 <div class="modal" id="modal-importando" style="display:none;">
   <div class="modal-box" style="padding:30px;max-width:340px;height:auto;text-align:center;background:#fff;">
     <div class="modal-spin" style="display:block;margin:0 auto 16px;"></div>
@@ -57,7 +58,6 @@
   </div>
 </div>
 
-<!-- Modal de sucesso de importação -->
 <div class="modal" id="modal-importado" onclick="if(event.target===this) fecharModalImportado()">
   <div class="modal-box" style="padding:30px 20px;max-width:380px;height:auto;text-align:center;position:relative;background:#fff;">
     <button class="modal-close-btn" onclick="fecharModalImportado()" style="background:#f4f4f2;color:#333;">✕</button>
@@ -92,190 +92,47 @@
 <div class="modal" id="modal-buscar-cliente" onclick="if(event.target===this) fecharModalBuscarCliente()">
   <div class="modal-box" style="padding:24px;max-width:450px;max-height:90vh;">
     <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">🔍 Pesquisa Geral de Clientes</h3>
-    <div class="field" style="display:flex; gap:8px; margin-bottom:12px;">
-      <input type="text" id="input-busca-cliente" placeholder="Digite CNPJ, Fantasia ou Cidade..." style="flex:1; padding:10px; border:1px solid var(--borda); border-radius:8px;">
-      <button class="btn prim" onclick="executarBuscaCliente()" style="width:auto; margin-bottom:0; padding:0 16px;">Pesquisar</button>
+    <div class="field" style="display:flex;gap:8px;margin-bottom:12px;">
+      <input type="text" id="input-busca-cliente" placeholder="CNPJ, Fantasia ou Cidade..." style="flex:1;padding:10px;border:1px solid var(--borda);border-radius:8px;">
+      <button class="btn prim" onclick="executarBuscaCliente()" style="width:auto;margin-bottom:0;padding:0 16px;">Buscar</button>
     </div>
     <div id="lista-busca-clientes" style="max-height:50vh;overflow-y:auto;border:1px solid var(--borda);border-radius:8px;background:#fff;">
-      <div class="vazio">Digite parâmetros para buscar...</div>
+      <div class="vazio">Digite para buscar...</div>
     </div>
-    <button class="btn" style="margin-top:12px;margin-bottom:0;" onclick="fecharModalBuscarCliente()">Fechar Janela</button>
+    <button class="btn" style="margin-top:12px;margin-bottom:0;" onclick="fecharModalBuscarCliente()">Fechar</button>
   </div>
 </div>
 
 <div class="modal" id="modal-detalhes-cliente" onclick="if(event.target===this) fecharModalDetalhesCliente()">
   <div class="modal-box" style="padding:24px;max-width:400px;max-height:90vh;">
-    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;text-align:center;">👤 Ficha Completa do Cliente</h3>
+    <h3 style="margin-bottom:16px;color:var(--verde-dk);font-size:16px;text-align:center;">👤 Ficha do Cliente</h3>
     <div class="scroll-form" id="conteudo-detalhes-cliente" style="font-size:13px;line-height:1.6;background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid var(--borda);"></div>
     <button class="btn prim" id="btn-selecionar-cliente-busca" style="margin-top:12px;display:none;">🛒 Fazer Pedido</button>
-    <button class="btn" style="margin-bottom:0;" onclick="fecharModalDetalhesCliente()">Voltar para a Busca</button>
+    <button class="btn" style="margin-bottom:0;" onclick="fecharModalDetalhesCliente()">Voltar</button>
   </div>
 </div>
 
+<!-- Modal Carrinho -->
 <div class="modal" id="modal-carrinho" onclick="clicouForaCarrinho(event)">
   <div class="modal-box" style="padding:0;max-width:520px;max-height:88vh;display:flex;flex-direction:column;">
-    <!-- Header do carrinho -->
-    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--borda);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+    <div style="padding:16px 20px 12px;border-bottom:1px solid var(--borda);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
       <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:20px;">🛒</span>
+        <span style="font-size:18px;">🛒</span>
         <div>
           <div style="font-weight:700;color:var(--texto);font-size:15px;">Carrinho de Compras</div>
           <div style="font-size:11px;color:var(--sub);" id="cart-header-resumo">Nenhum item</div>
         </div>
       </div>
-      <button onclick="fecharCarrinho()" style="background:var(--cinza);border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:var(--sub);display:flex;align-items:center;justify-content:center;">✕</button>
+      <button onclick="fecharCarrinho()" style="background:var(--cinza);border:none;width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;color:var(--sub);display:flex;align-items:center;justify-content:center;">✕</button>
     </div>
-    <!-- Lista de itens -->
-    <div id="lista-d" style="flex:1;overflow-y:auto;padding:8px 0;"></div>
-    <!-- Footer -->
-    <div style="padding:14px 20px;border-top:1px solid var(--borda);flex-shrink:0;background:#fff;">
-      <button class="btn" onclick="limSel(); fecharCarrinho()" style="margin:0;color:#c0392b;border-color:#f5c6c6;background:#fff8f8;font-size:12px;">🗑️ Esvaziar Carrinho</button>
+    <div id="lista-d" style="flex:1;overflow-y:auto;padding:6px 0;"></div>
+    <div style="padding:12px 20px;border-top:1px solid var(--borda);flex-shrink:0;background:#fff;">
+      <button class="btn danger" onclick="limSel(); fecharCarrinho()" style="margin:0;font-size:12px;">🗑️ Esvaziar Carrinho</button>
     </div>
   </div>
 </div>
 
-<header>
-  <div class="header-inner">
-    <div class="logo-area" id="logo-area">
-      <img src="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w300" alt="Di Solle">
-    </div>
-    <div class="search-wrap">
-      <span class="search-icon">&#128269;</span>
-      <input type="text" id="busca" placeholder="Código, descrição ou EAN..." oninput="filtrar()">
-    </div>
-    <div class="badge" id="badge">0 itens</div>
-    <a href="https://wa.me/5554996963401" target="_blank" title="Falar no WhatsApp" style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:#25D366;border-radius:50%;flex-shrink:0;text-decoration:none;">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.116 1.524 5.849L.057 23.428a.75.75 0 0 0 .916.948l5.743-1.504A11.953 11.953 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.75 9.75 0 0 1-5.031-1.395l-.361-.215-3.741.98.998-3.645-.236-.374A9.75 9.75 0 1 1 12 21.75z"/></svg>
-    </a>
-  </div>
-</header>
-
-<div class="filtros">
-  <div class="filtros-inner">
-    <label>PROMOÇÕES:</label>
-    <select id="fil-promo" onchange="filtrar()">
-      <option value="">TODOS</option>
-      <option value="sim">SIM</option>
-    </select>
-    <label>PREÇO ATÉ:</label>
-    <input type="number" id="fil-preco" placeholder="R$" oninput="filtrar()" style="width:80px">
-    <button class="btn-lim" onclick="limFiltros()">✕ Limpar</button>
-
-    <div class="top-actions">
-      <span style="display:flex;align-items:center;gap:8px;" id="icons-actions">
-        <button class="btn-lim" onclick="abrirModalUpload()" title="Subir Pedido Manual" style="padding:4px 8px;font-size:16px;background:none;border:none;">⬆️</button>
-        <button class="btn-lim" onclick="abrirModalNovoCliente()" title="Adicionar Cliente Manualmente" style="padding:4px 8px;font-size:16px;background:none;border:none;">➕</button>
-        <button class="btn-lim" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base" style="padding:4px 8px;font-size:16px;background:none;border:none;">🔍👥</button>
-      </span>
-      <span style="font-size:13px;font-weight:600;color:var(--verde-dk);display:none;align-items:center;gap:6px;background:var(--verde-lt);padding:4px 10px;border-radius:12px;" id="info-repre-box">
-        Rep: <span id="info-repre-txt"></span>
-        <button onclick="abrirModalRepre()" style="background:none;border:none;color:var(--sub);text-decoration:underline;cursor:pointer;font-size:11px;">(Trocar)</button>
-      </span>
-      <span style="font-size:12px;color:var(--sub)" id="cont"></span>
-      <button class="btn-lim btn-sync" id="btn-sync" onclick="sincronizarPlanilha()">🔄 Sincronizar Catálogo</button>
-    </div>
-  </div>
-</div>
-
-<div class="main">
-  <div><div id="grid" class="grid"></div></div>
-
-  <aside class="painel">
-    <div class="painel-header">
-      <button class="btn prim" onclick="abrirCarrinho()" style="margin:0;font-size:14px;width:100%;">🛒 Ver Carrinho (<span id="cart-count">0</span> itens)</button>
-    </div>
-    <div class="painel-scroll">
-      <div class="field">
-        <label>UF Destino / Estado</label>
-        <select id="uf-d" onchange="alterouUF('uf-d')"><option value="">Selecione o Estado...</option></select>
-      </div>
-      <div class="field">
-        <label>Prazo de Pagamento Base</label>
-        <select id="prazo-d" onchange="alterouPrazoBase('prazo-d','prazo-m')">
-          <option value="14">Antecipado (-14%)</option>
-          <option value="9">28 dias (-9%)</option>
-          <option value="7">35 dias (-7%)</option>
-          <option value="5">42 dias (-5%)</option>
-          <option value="2">56 dias (-2%)</option>
-          <option value="0">63 dias (0%)</option>
-        </select>
-      </div>
-      <div class="field" id="wrapper-subprazo-d" style="display:none;">
-        <label>Opções de Desmembramento</label>
-        <select id="subprazo-d" onchange="syncRegras('subprazo-d','subprazo-m')"></select>
-      </div>
-    </div>
-    <div class="painel-footer">
-      <div class="resultado">
-        <div class="res-row"><span>Tabela Ativa:</span><b id="rd-tabela-ativa" style="color:#000;">M26071</b></div>
-        <div class="res-row"><span>Subtotal c/ Prazo:</span><b id="rd-bruto-prod">R$ 0,00</b></div>
-        <div class="res-row"><span>Desc. Prazo (<span id="rd-prazo-pct">0</span>%):</span><b id="rd-prazo-val" style="color:#c0392b;">- R$ 0,00</b></div>
-        <div class="res-row"><span>Valor Total IPI (+):</span><b id="rd-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
-        <div class="res-row"><span>Valor Frete:</span><b id="rd-frete-val">R$ 0,00</b></div>
-        <div class="res-sep"></div>
-        <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rd-total">R$ 0,00</b></div>
-      </div>
-      <div class="btn-group">
-        <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>✓ Finalizar</button>
-        <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
-        <button class="btn pdf-btn" id="btn-disolle-d" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar Di Solle</button>
-      </div>
-    </div>
-  </aside>
-</div>
-
-<div class="mob-bar" id="mob-bar">
-  <div class="mb-info" id="mb-info">Selecione produtos</div>
-  <button class="mb-btn" onclick="abrirSheet()">Avançar</button>
-</div>
-
-<div class="sh-overlay" id="sh-ov" onclick="fecharSheet()"></div>
-
-<div class="b-sheet" id="b-sheet">
-  <div class="sh-header">
-    <div class="sh-handle"></div>
-    <button class="btn prim" onclick="abrirCarrinho()" style="margin:0 auto;font-size:14px;width:80%;">🛒 Ver Carrinho (<span id="cart-count-m">0</span> itens)</button>
-  </div>
-  <div class="sh-scroll">
-    <div class="field">
-      <label>UF Destino / Estado</label>
-      <select id="uf-m" onchange="alterouUF('uf-m')"><option value="">Selecione o Estado...</option></select>
-    </div>
-    <div class="field">
-      <label>Prazo de Pagamento Base</label>
-      <select id="prazo-m" onchange="alterouPrazoBase('prazo-m','prazo-d')">
-        <option value="14">Antecipado (-14%)</option>
-        <option value="9">28 dias (-9%)</option>
-        <option value="7">35 dias (-7%)</option>
-        <option value="5">42 dias (-5%)</option>
-        <option value="2">56 dias (-2%)</option>
-        <option value="0">63 dias (0%)</option>
-      </select>
-    </div>
-    <div class="field" id="wrapper-subprazo-m" style="display:none;">
-      <label>Opções de Desmembramento</label>
-      <select id="subprazo-m" onchange="syncRegras('subprazo-m','subprazo-d')"></select>
-    </div>
-  </div>
-  <div class="sh-footer">
-    <div class="resultado">
-      <div class="res-row"><span>Tabela Ativa:</span><b id="rm-tabela-ativa" style="color:#000;">M26071</b></div>
-      <div class="res-row"><span>Subtotal c/ Prazo:</span><b id="rm-bruto-prod">R$ 0,00</b></div>
-      <div class="res-row"><span>Desc. Prazo (<span id="rm-prazo-pct">0</span>%):</span><b id="rm-prazo-val" style="color:#c0392b;">- R$ 0,00</b></div>
-      <div class="res-row"><span>Valor Total IPI (+):</span><b id="rm-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
-      <div class="res-row"><span>Valor Frete:</span><b id="rm-frete-val">R$ 0,00</b></div>
-      <div class="res-sep"></div>
-      <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rm-total">R$ 0,00</b></div>
-    </div>
-    <div class="btn-group">
-      <button class="btn prim" id="btn-orc-m" onclick="abrirFluxoFechamento('m')" disabled>✓ Finalizar</button>
-      <button class="btn" id="btn-baixar-m" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
-      <button class="btn pdf-btn" id="btn-disolle-m" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar Di Solle</button>
-    </div>
-    <button class="btn" onclick="fecharSheet()" style="margin-top:10px;margin-bottom:0;width:100%;">Fechar Aba</button>
-  </div>
-</div>
-
+<!-- Modal Produto -->
 <div class="modal" id="modal" onclick="clicouFora(event)">
   <div class="modal-box">
     <div class="modal-img-wrap">
@@ -290,7 +147,7 @@
       <div class="modal-emb" id="modal-emb"></div>
       <div class="qty-row">
         <label>Quantidade:</label>
-        <button class="qty-big-btn" onclick="mudarQtyModal(-1)">-</button>
+        <button class="qty-big-btn" onclick="mudarQtyModal(-1)">−</button>
         <input type="number" class="qty-big-input" id="modal-qty" value="1" min="1" onfocus="this.select()" onblur="corrigirQtyModal(this)">
         <button class="qty-big-btn" onclick="mudarQtyModal(1)">+</button>
       </div>
@@ -299,6 +156,7 @@
   </div>
 </div>
 
+<!-- Modal Cliente -->
 <div class="modal" id="modal-cliente" onclick="clicouForaCliente(event)">
   <div class="modal-box" style="padding:24px;max-width:400px;height:auto;max-height:94vh;">
     <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">📋 DADOS DO CLIENTE</h3>
@@ -325,6 +183,245 @@
 
 <div class="toast" id="toast"></div>
 
+<!-- ── HEADER ──────────────────────────────────── -->
+<header>
+  <div class="header-inner">
+    <div class="logo-area" id="logo-area">
+      <img src="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w300" alt="Di Solle">
+    </div>
+    <div class="search-wrap">
+      <span class="search-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input type="text" id="busca" placeholder="Código, descrição ou EAN..." oninput="filtrar()">
+    </div>
+    <div class="badge" id="badge">0</div>
+    <a href="https://wa.me/5554996963401" target="_blank" title="Falar no WhatsApp" class="wa-btn">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.116 1.524 5.849L.057 23.428a.75.75 0 0 0 .916.948l5.743-1.504A11.953 11.953 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.75 9.75 0 0 1-5.031-1.395l-.361-.215-3.741.98.998-3.645-.236-.374A9.75 9.75 0 1 1 12 21.75z"/></svg>
+    </a>
+  </div>
+</header>
+
+<!-- ── FILTROS ──────────────────────────────────── -->
+<div class="filtros">
+  <div class="filtros-inner">
+    <label>PROMOÇÕES:</label>
+    <select id="fil-promo" onchange="filtrar()">
+      <option value="">TODOS</option>
+      <option value="sim">SIM</option>
+    </select>
+    <label>ATÉ R$:</label>
+    <input type="number" id="fil-preco" placeholder="Preço" oninput="filtrar()" style="width:76px">
+    <button class="btn-lim" onclick="limFiltros()">✕ Limpar</button>
+
+    <div class="top-actions">
+      <!-- Ícone: Subir pedido -->
+      <button class="action-icon-btn" onclick="abrirModalUpload()" title="Subir Pedido Manual (PDF)">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        PDF
+      </button>
+      <!-- Ícone: Novo cliente -->
+      <button class="action-icon-btn" onclick="abrirModalNovoCliente()" title="Adicionar Novo Cliente">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Novo
+      </button>
+      <!-- Ícone: Buscar cliente -->
+      <button class="action-icon-btn" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        Clientes
+      </button>
+      <!-- Info representante -->
+      <span class="info-repre-box" id="info-repre-box" style="display:none;">
+        Rep: <span id="info-repre-txt"></span>
+        <button onclick="abrirModalRepre()">(Trocar)</button>
+      </span>
+      <span id="cont" style="font-size:11px;color:var(--sub);white-space:nowrap;"></span>
+      <button class="btn-sync" id="btn-sync" onclick="sincronizarPlanilha()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:3px"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        Sincronizar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── CHIPS DE LINHA ───────────────────────────── -->
+<div class="linhas-wrap">
+  <div class="linhas-inner" id="linhas-chips">
+    <span class="linha-chip ativa" data-linha="" onclick="filtrarLinha(this)">Todas</span>
+    <span class="linha-chip" data-linha="PARATY" onclick="filtrarLinha(this)">Paraty</span>
+    <span class="linha-chip" data-linha="MILLENNIUM" onclick="filtrarLinha(this)">Millenium</span>
+    <span class="linha-chip" data-linha="INOVA" onclick="filtrarLinha(this)">Inova D+</span>
+    <span class="linha-chip" data-linha="PRISMA" onclick="filtrarLinha(this)">Prisma</span>
+    <span class="linha-chip" data-linha="NEW TROPICAL" onclick="filtrarLinha(this)">New Tropical</span>
+    <span class="linha-chip" data-linha="DURAFIO" onclick="filtrarLinha(this)">Durafio</span>
+    <span class="linha-chip" data-linha="OCEANO" onclick="filtrarLinha(this)">Oceano</span>
+    <span class="linha-chip" data-linha="CLASSICA" onclick="filtrarLinha(this)">Clássica</span>
+    <span class="linha-chip" data-linha="UNIVERSO" onclick="filtrarLinha(this)">Universo</span>
+    <span class="linha-chip" data-linha="NOBILE" onclick="filtrarLinha(this)">Nobile</span>
+    <span class="linha-chip" data-linha="MAGNUM" onclick="filtrarLinha(this)">Magnum</span>
+    <span class="linha-chip" data-linha="ZEUS" onclick="filtrarLinha(this)">Zeus</span>
+  </div>
+</div>
+
+<!-- ── LAYOUT PRINCIPAL ─────────────────────────── -->
+<div class="main">
+  <div><div id="grid" class="grid"></div></div>
+
+  <!-- PAINEL LATERAL DESKTOP -->
+  <aside class="painel">
+    <!-- Header verde com botão carrinho -->
+    <div class="painel-header">
+      <button class="painel-header-btn" onclick="abrirCarrinho()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
+        Ver Carrinho (<span id="cart-count">0</span> itens)
+      </button>
+    </div>
+
+    <!-- Config: UF + Prazo -->
+    <div class="painel-config">
+      <div class="field">
+        <label>UF Destino / Estado</label>
+        <select id="uf-d" onchange="alterouUF('uf-d')"><option value="">Selecione o Estado...</option></select>
+      </div>
+      <div class="field">
+        <label>Prazo de Pagamento</label>
+        <select id="prazo-d" onchange="alterouPrazoBase('prazo-d','prazo-m')">
+          <option value="14">Antecipado (−14%)</option>
+          <option value="9">28 dias (−9%)</option>
+          <option value="7">35 dias (−7%)</option>
+          <option value="5">42 dias (−5%)</option>
+          <option value="2">56 dias (−2%)</option>
+          <option value="0">63 dias (0%)</option>
+        </select>
+      </div>
+      <div class="field" id="wrapper-subprazo-d" style="display:none;">
+        <label>Desmembramento</label>
+        <select id="subprazo-d" onchange="syncRegras('subprazo-d','subprazo-m')"></select>
+      </div>
+    </div>
+
+    <!-- Totais -->
+    <div class="painel-totais">
+      <div class="res-row">
+        <span>Tabela Ativa</span>
+        <span class="tabela-tag" id="rd-tabela-ativa">—</span>
+      </div>
+      <div class="res-row" style="margin-top:6px;">
+        <span>Subtotal c/ Prazo:</span>
+        <b id="rd-bruto-prod">R$ 0,00</b>
+      </div>
+      <div class="res-row">
+        <span>Desc. Prazo (<span id="rd-prazo-pct">0</span>%):</span>
+        <b id="rd-prazo-val" style="color:#c0392b;">− R$ 0,00</b>
+      </div>
+      <div class="res-row">
+        <span>IPI (+):</span>
+        <b id="rd-ipi-val" style="color:#2980b9;">+ R$ 0,00</b>
+      </div>
+      <div class="res-row">
+        <span>Frete:</span>
+        <b id="rd-frete-val">R$ 0,00</b>
+      </div>
+      <div class="res-row total-row">
+        <span>TOTAL LÍQUIDO</span>
+        <b id="rd-total">R$ 0,00</b>
+      </div>
+    </div>
+
+    <!-- Botões de ação -->
+    <div class="painel-footer">
+      <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        Finalizar Pedido
+      </button>
+      <div class="pf-row">
+        <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="color:var(--verde-dk);border-color:var(--verde);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          PDF
+        </button>
+        <button class="btn pdf-btn" id="btn-disolle-d" onclick="acionarPdf('enviar_disolle')" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+          Enviar
+        </button>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<!-- ── MOBILE BAR ───────────────────────────────── -->
+<div class="mob-bar" id="mob-bar">
+  <div class="mb-info" id="mb-info">Selecione produtos</div>
+  <button class="mb-btn" onclick="abrirSheet()">Avançar →</button>
+</div>
+
+<div class="sh-overlay" id="sh-ov" onclick="fecharSheet()"></div>
+
+<div class="b-sheet" id="b-sheet">
+  <div class="sh-header">
+    <div class="sh-handle"></div>
+    <button class="btn prim" onclick="abrirCarrinho()" style="margin:0 auto;font-size:13px;width:80%;">
+      🛒 Ver Carrinho (<span id="cart-count-m">0</span> itens)
+    </button>
+  </div>
+  <div class="sh-scroll">
+    <div class="field">
+      <label>UF Destino / Estado</label>
+      <select id="uf-m" onchange="alterouUF('uf-m')"><option value="">Selecione o Estado...</option></select>
+    </div>
+    <div class="field">
+      <label>Prazo de Pagamento Base</label>
+      <select id="prazo-m" onchange="alterouPrazoBase('prazo-m','prazo-d')">
+        <option value="14">Antecipado (−14%)</option>
+        <option value="9">28 dias (−9%)</option>
+        <option value="7">35 dias (−7%)</option>
+        <option value="5">42 dias (−5%)</option>
+        <option value="2">56 dias (−2%)</option>
+        <option value="0">63 dias (0%)</option>
+      </select>
+    </div>
+    <div class="field" id="wrapper-subprazo-m" style="display:none;">
+      <label>Desmembramento</label>
+      <select id="subprazo-m" onchange="syncRegras('subprazo-m','subprazo-d')"></select>
+    </div>
+  </div>
+  <div class="sh-footer">
+    <div class="resultado">
+      <div class="res-row"><span>Tabela Ativa:</span><b id="rm-tabela-ativa" style="color:#000;">—</b></div>
+      <div class="res-row"><span>Subtotal c/ Prazo:</span><b id="rm-bruto-prod">R$ 0,00</b></div>
+      <div class="res-row"><span>Desc. Prazo (<span id="rm-prazo-pct">0</span>%):</span><b id="rm-prazo-val" style="color:#c0392b;">− R$ 0,00</b></div>
+      <div class="res-row"><span>IPI (+):</span><b id="rm-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
+      <div class="res-row"><span>Frete:</span><b id="rm-frete-val">R$ 0,00</b></div>
+      <div class="res-sep"></div>
+      <div class="res-row" style="font-size:14px;font-weight:700;"><span>TOTAL LÍQUIDO:</span><b id="rm-total" style="color:var(--verde-dk);">R$ 0,00</b></div>
+    </div>
+    <div class="btn-group">
+      <button class="btn prim" id="btn-orc-m" onclick="abrirFluxoFechamento('m')" disabled>✓ Finalizar</button>
+      <button class="btn" id="btn-baixar-m" onclick="acionarPdf('baixar')" disabled style="color:var(--verde-dk);border-color:var(--verde);">⬇ PDF</button>
+      <button class="btn pdf-btn" id="btn-disolle-m" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar</button>
+    </div>
+    <button class="btn" onclick="fecharSheet()" style="margin-top:8px;margin-bottom:0;">Fechar</button>
+  </div>
+</div>
+
 <script src="app.js"></script>
+
+<!-- Lógica dos chips de linha -->
+<script>
+(function(){
+  var linhaAtiva = '';
+  window.filtrarLinha = function(el){
+    document.querySelectorAll('.linha-chip').forEach(function(c){ c.classList.remove('ativa'); });
+    el.classList.add('ativa');
+    linhaAtiva = el.dataset.linha || '';
+    // Aciona filtro principal se existir
+    if(typeof filtrar === 'function') filtrar();
+  };
+
+  // Expõe a linha ativa para app.js usar se necessário
+  Object.defineProperty(window, 'linhaChipAtiva', {
+    get: function(){ return linhaAtiva; }
+  });
+})();
+</script>
 </body>
 </html>
