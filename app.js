@@ -15,6 +15,11 @@ let CODIGO_REPRE = localStorage.getItem('repre_cod') || "";
 let PRODUTO_MODAL_ATIVO = null;
 let BLOQUEIA_SALVAMENTO_CNPJ = false;
 
+// --- CLIENTE ESPECIAL KNE825 ---
+const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
+let TABELA_KNE825 = {};                         // { codNorm: precoUnit } vindo do GS
+let CLIENTE_ESPECIAL_ATIVO = false;             // true quando KNE825 selecionado + prazo 28 dias
+
 // Tabela de prazos e opções de desmembramento
 const SUB_PRAZOS = {
   "9": ["28 DIAS","14/42 DIAS","21/35 DIAS","14/28/42 DIAS"],
@@ -78,6 +83,47 @@ function formatDin(v) {
 }
 
 // =============================================
+// CLIENTE ESPECIAL KNE825
+// =============================================
+function getPrecoEspecialKNE825(produto) {
+  let codNorm = produto.codigo.toLowerCase().trim();
+  let preco = TABELA_KNE825[codNorm];
+  if (preco === undefined) {
+    let sem0 = codNorm.replace(/^0+/, '');
+    for (let k of Object.keys(TABELA_KNE825)) {
+      if (k.replace(/^0+/, '') === sem0) { preco = TABELA_KNE825[k]; break; }
+    }
+  }
+  return (preco !== undefined && preco > 0) ? preco : null;
+}
+
+function getPrecoFinal(produto, tabelaNormal) {
+  if (CLIENTE_ESPECIAL_ATIVO) {
+    let esp = getPrecoEspecialKNE825(produto);
+    if (esp !== null) return esp;
+  }
+  return produto.emPromocao ? (produto.precosPromo[tabelaNormal] || 0) : (produto.precos[tabelaNormal] || 0);
+}
+
+function verificarModoEspecial() {
+  // Ativa somente se CNPJ do cliente = KNE825 E prazo = 28 dias (valor "9")
+  let cnpjAtual = (document.getElementById('cli-cnpj') ? document.getElementById('cli-cnpj').value : '').replace(/\D/g,'');
+  let prazo = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
+  CLIENTE_ESPECIAL_ATIVO = (cnpjAtual === CNPJ_KNE825 && prazo === '9' && Object.keys(TABELA_KNE825).length > 0);
+}
+
+function ativarClienteKNE825(cnpj) {
+  let cnpjLimpo = (cnpj || '').replace(/\D/g,'');
+  if (cnpjLimpo === CNPJ_KNE825 && Object.keys(TABELA_KNE825).length > 0) {
+    document.getElementById('prazo-d').value = '9';
+    document.getElementById('prazo-m').value = '9';
+    alterouPrazoBase('prazo-d', 'prazo-m');
+    CLIENTE_ESPECIAL_ATIVO = true;
+    showToast("📋 Tabela especial KNE825 ativada — prazo 28 dias");
+  }
+}
+
+// =============================================
 // DADOS — CARREGAMENTO E SINCRONIZAÇÃO
 // =============================================
 async function carregarDados(force = false) {
@@ -87,6 +133,7 @@ async function carregarDados(force = false) {
     PRODUTOS = d.produtos || [];
     FRETE_REGRAS = d.freteRegras || {};
     CLIENTES = d.clientes || [];
+    TABELA_KNE825 = d.tabelaKNE825 || {};
 
     let ufs = d.estados || Object.keys(FRETE_REGRAS);
     let ufd = document.getElementById('uf-d'), ufm = document.getElementById('uf-m');
@@ -183,7 +230,7 @@ function renderizar(arr) {
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   arr.forEach(p => {
-    let pFinal = p.emPromocao ? p.precosPromo[tabelaCard] : p.precos[tabelaCard];
+    let pFinal = getPrecoFinal(p, tabelaCard);
     if (!pFinal) return;
 
     let keyCod = p.codigo.toLowerCase().trim();
@@ -222,7 +269,7 @@ function abrirModal(p) {
   document.getElementById('modal-spin').style.display = 'block';
   document.getElementById('modal-cod').innerText = p.codigo;
   document.getElementById('modal-desc').innerText = p.descricao;
-  document.getElementById('modal-preco').innerText = formatDin(p.emPromocao ? p.precosPromo[tAtiva] : p.precos[tAtiva]);
+  document.getElementById('modal-preco').innerText = formatDin(getPrecoFinal(p, tAtiva));
   document.getElementById('modal-emb').innerText = `Múltiplo: ${p.qtdEmbalagem} | NCM: ${p.ncm} | IPI: ${p.ipi}%`;
 
   let key = p.codigo.toLowerCase().trim();
@@ -320,7 +367,7 @@ function renderizarCarrinho(tabelaAtiva) {
   chaves.forEach(cod => {
     let item = SELECIONADOS[cod];
     let p = item.produto, qty = item.qtd;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
+    let precoUnit = getPrecoFinal(p, tabelaAtiva);
     let totalItem = precoUnit * qty;
     totalCx += qty;
 
@@ -483,6 +530,7 @@ function alterouPrazoBase(idO, idD) {
     wD.style.display = 'none'; wM.style.display = 'none';
     sD.innerHTML = ''; sM.innerHTML = '';
   }
+  verificarModoEspecial();
   calcularTudo();
 }
 
@@ -526,7 +574,7 @@ function calcularTudo() {
   Object.keys(SELECIONADOS).forEach(c => {
     let item = SELECIONADOS[c];
     let p = item.produto, qty = item.qtd;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
+    let precoUnit = getPrecoFinal(p, tabelaAtiva);
     let totalItemOriginal = precoUnit * qty;
     subtotalProdutos += totalItemOriginal;
     contItens += qty;
@@ -652,6 +700,7 @@ function buscarClienteAoDigitar(cnpj) {
       document.getElementById('cli-' + f).value = c[f] || '';
     });
     showToast("✅ Dados do cliente preenchidos automaticamente.");
+    ativarClienteKNE825(cnpj);
   } else {
     if (confirm("❌ Cliente não localizado! Deseja abrir a tela de cadastro para este CNPJ agora?")) {
       fecharModalCliente();
@@ -803,6 +852,7 @@ function mostrarFichaCompletaCliente(c) {
       }
     }
 
+    ativarClienteKNE825(c.cnpj || '');
     fecharModalDetalhesCliente();
     fecharModalBuscarCliente();
     showToast("✅ Cliente vinculado! Adicione os itens e finalize.");
@@ -1227,6 +1277,7 @@ async function importarPedidoPdf() {
     });
 
     calcularTudo();
+    if (cli.cnpj) ativarClienteKNE825(cli.cnpj);
 
     document.getElementById('modal-importando').classList.remove('open');
     document.getElementById('modal-importando').style.display = 'none';
