@@ -18,6 +18,7 @@
   --painel-w:320px;
   --header-h:64px;
   --filtro-h:44px;
+  --chips-h:38px;
 }
 
 body{
@@ -295,10 +296,10 @@ header{
   border:1px solid var(--borda);
   border-radius:12px;
   position:sticky;
-  top:calc(var(--header-h) + var(--filtro-h) + 36px + 14px);
+  top:calc(var(--header-h) + var(--filtro-h) + var(--chips-h) + 14px);
   display:flex;
   flex-direction:column;
-  height:calc(100vh - var(--header-h) - var(--filtro-h) - 36px - 28px);
+  height:calc(100vh - var(--header-h) - var(--filtro-h) - var(--chips-h) - 28px);
   overflow:hidden;
   box-shadow:0 2px 12px rgba(0,0,0,.06);
 }
@@ -633,7 +634,7 @@ header{
 /* ─── RESPONSIVO MOBILE ─────────────────── */
 @media(max-width:880px){
   body{padding-bottom:72px}
-  :root{--header-h:56px;--filtro-h:42px}
+  :root{--header-h:56px;--filtro-h:42px;--chips-h:36px}
 
   .main{
     grid-template-columns:1fr;
