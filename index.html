@@ -218,7 +218,7 @@
       <!-- Ícone: Subir pedido -->
       <button class="action-icon-btn" onclick="abrirModalUpload()" title="Subir Pedido Manual (PDF)">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        PDF
+        Editar
       </button>
       <!-- Ícone: Buscar cliente -->
       <button class="action-icon-btn" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base">
@@ -228,7 +228,7 @@
       <!-- Ícone: Editar cliente -->
       <button class="action-icon-btn" onclick="abrirModalNovoCliente()" title="Editar / Adicionar Cliente">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-        Editar
+        Criar
       </button>
       <!-- Info representante -->
       <span class="info-repre-box" id="info-repre-box" style="display:none;">
@@ -329,20 +329,20 @@
 
     <!-- Botões de ação -->
     <div class="painel-footer">
-      <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-        Finalizar Pedido
-      </button>
       <div class="pf-row">
-        <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="color:var(--verde-dk);border-color:var(--verde);">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-          Baixar PDF
+        <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled style="flex:1;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Finalizar
         </button>
-        <button class="btn pdf-btn" id="btn-disolle-d" onclick="acionarPdf('enviar_disolle')" disabled>
+        <button class="btn pdf-btn" id="btn-disolle-d" onclick="acionarPdf('enviar_disolle')" disabled style="flex:1;">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
           Enviar Di Solle
         </button>
       </div>
+      <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="color:var(--verde-dk);border-color:var(--verde);">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Baixar PDF
+      </button>
     </div>
   </aside>
 </div>
