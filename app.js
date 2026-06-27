@@ -997,9 +997,20 @@ async function extrairTextoPdf(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     let page = await pdf.getPage(i);
     let content = await page.getTextContent();
-    // Junta itens de texto com espaço, quebra de página entre páginas
-    let linhas = content.items.map(it => it.str).join(' ');
-    textoTotal += linhas + '\n';
+    // Reconstrói linhas usando posição Y para detectar quebras reais
+    let ultimoY = null;
+    let linhaAtual = '';
+    content.items.forEach(it => {
+      let y = it.transform ? Math.round(it.transform[5]) : null;
+      if (ultimoY !== null && y !== null && Math.abs(y - ultimoY) > 2) {
+        textoTotal += linhaAtual.trim() + '\n';
+        linhaAtual = '';
+      }
+      linhaAtual += (linhaAtual ? ' ' : '') + it.str;
+      if (y !== null) ultimoY = y;
+    });
+    if (linhaAtual.trim()) textoTotal += linhaAtual.trim() + '\n';
+    textoTotal += '\n';
   }
   return textoTotal;
 }
@@ -1076,19 +1087,19 @@ function parsearPedidoDiSolle(texto) {
   let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
   resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
 
-  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|]+?)(?:\s*\||$)/i);
+  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|\n]+?)(?:\s*(?:\||\n|$))/i);
   resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
 
   // ---- ITENS ----
   // Padrão de linha: CODIGO  DESCRICAO  QTD  ...
   // Código Di Solle: 13 dígitos numéricos
-  let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z].+?)\s+(\d{1,4})\s+R\$/g)];
+  let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z][A-Z0-9 \/\-\.]+?)\s+(\d{1,4})\s+R\$/g)];
   
   if (linhasItens.length === 0) {
     // Fallback: tenta 10+ dígitos seguidos de texto e quantidade
-    linhasItens = [...t.matchAll(/(\d{10,15})\s+\S.{5,80?}\s+(\d{1,4})\s+R\$/g)];
+    linhasItens = [...t.matchAll(/(\d{10,15})\s+([A-Z][A-Z0-9 \/\-\.]{4,80}?)\s+(\d{1,4})\s+R\$/g)];
     linhasItens.forEach(m => {
-      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[2]) });
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
     });
   } else {
     linhasItens.forEach(m => {
