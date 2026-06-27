@@ -1087,7 +1087,7 @@ function parsearPedidoDiSolle(texto) {
   let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
   resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
 
-  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|\n]+?)(?:\s*(?:\||\n|$))/i);
+  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*((?:ANTECIPADO|[\d\/]+ DIAS)[^\n|]*?)(?:\s*(?:\||\n|FOTO|$))/i);
   resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
 
   // ---- ITENS ----
@@ -1237,16 +1237,16 @@ async function importarPedidoPdf() {
     }
 
     document.getElementById('import-resumo-txt').innerText =
-      `${itensImportados} item(ns) carregado(s) com sucesso.\nCliente: ${cli.razao || '-'}\nPrazo: ${prazoStr || '-'}`;
+      `${itensImportados} item(ns) carregado(s) com sucesso.`;
 
     let avisosEl = document.getElementById('import-avisos');
-    if (avisos.length > 0) {
-      avisosEl.innerHTML = avisos.map(a => `<div style="margin-bottom:4px;">${a}</div>`).join('');
+    let avisosFiltrados = avisos.filter(a => a.includes('item(ns) não encontrado'));
+    if (avisosFiltrados.length > 0) {
+      avisosEl.innerHTML = avisosFiltrados.map(a => `<div style="margin-bottom:4px;">${a}</div>`).join('');
       avisosEl.style.display = 'block';
     } else {
       avisosEl.style.display = 'none';
     }
-
     document.getElementById('modal-importado').style.display = 'flex';
     document.getElementById('modal-importado').classList.add('open');
 
