@@ -282,6 +282,177 @@ function limSel() {
   });
 }
 
+// =============================================
+// CARRINHO — RENDERIZAÇÃO INDEPENDENTE
+// =============================================
+function renderizarCarrinho(tabelaAtiva) {
+  // Recalcula tabelaAtiva se não fornecida
+  if (!tabelaAtiva) {
+    let uf = document.getElementById('uf-d').value;
+    let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+    let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+    let pctPrazo = (100 - prazoBase) / 100;
+    let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
+    let limiteTabela = icmsBase === "7" ? 5000 : 2500;
+    let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
+    tabelaAtiva = (liquidoPrevia <= limiteTabela) ? tabelaBase : (icmsBase === "7" ? "M26072" : "M26122");
+  }
+
+  let hd = document.getElementById('lista-d');
+  if (!hd) return;
+
+  let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazo = (100 - prazoBase) / 100;
+
+  // Guarda a posição de scroll antes de limpar
+  let scrollTop = hd.scrollTop;
+  hd.innerHTML = '';
+
+  let chaves = Object.keys(SELECIONADOS);
+  if (chaves.length === 0) {
+    hd.innerHTML = '<div class="vazio" style="padding:36px 20px;font-size:13px;text-align:center;">🛒<br><br>Carrinho vazio</div>';
+    let rh = document.getElementById('cart-header-resumo');
+    if (rh) rh.innerText = 'Nenhum item';
+    return;
+  }
+
+  let totalCx = 0;
+  chaves.forEach(cod => {
+    let item = SELECIONADOS[cod];
+    let p = item.produto, qty = item.qtd;
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaAtiva] || 0) : (p.precos[tabelaAtiva] || 0);
+    let totalItem = precoUnit * qty;
+    totalCx += qty;
+
+    let div = document.createElement('div');
+    div.className = 'cart-item';
+
+    // Miniatura
+    let imgEl = document.createElement('div');
+    imgEl.className = 'cart-item-img';
+    if (p.fileId) {
+      let img = document.createElement('img');
+      img.src = `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w80`;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .3s';
+      img.onload = () => { img.style.opacity = 1; };
+      imgEl.appendChild(img);
+    } else {
+      imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
+    }
+
+    // Info
+    let infoEl = document.createElement('div');
+    infoEl.className = 'cart-item-info';
+    infoEl.innerHTML = `
+      <div class="cart-item-cod">${p.codigo}</div>
+      <div class="cart-item-desc" title="${p.descricao}">${p.descricao}</div>
+      <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
+    `;
+
+    // Controle de quantidade — usando addEventListener, não onclick inline
+    let ctrlEl = document.createElement('div');
+    ctrlEl.className = 'cart-qty-ctrl';
+    ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
+
+    let btnMenos = document.createElement('button');
+    btnMenos.className = 'cart-qty-btn';
+    btnMenos.textContent = '−';
+    btnMenos.title = 'Diminuir';
+
+    let inputQty = document.createElement('input');
+    inputQty.className = 'cart-qty-input';
+    inputQty.type = 'number';
+    inputQty.value = qty;
+    inputQty.min = p.qtdEmbalagem || 1;
+
+    let btnMais = document.createElement('button');
+    btnMais.className = 'cart-qty-btn';
+    btnMais.textContent = '+';
+    btnMais.title = 'Aumentar';
+
+    let multiplo = p.qtdEmbalagem || 1;
+
+    btnMenos.addEventListener('click', () => {
+      let novaQty = (SELECIONADOS[cod] ? SELECIONADOS[cod].qtd : qty) - multiplo;
+      if (novaQty < multiplo) {
+        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+          delete SELECIONADOS[cod];
+          calcularTudo();
+        }
+      } else {
+        SELECIONADOS[cod].qtd = novaQty;
+        calcularTudo();
+      }
+    });
+
+    btnMais.addEventListener('click', () => {
+      if (SELECIONADOS[cod]) SELECIONADOS[cod].qtd += multiplo;
+      calcularTudo();
+    });
+
+    inputQty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') inputQty.blur();
+    });
+
+    inputQty.addEventListener('blur', () => {
+      if (!SELECIONADOS[cod]) return;
+      let v = parseInt(inputQty.value) || 0;
+      if (v <= 0) {
+        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+          delete SELECIONADOS[cod];
+          calcularTudo();
+        } else {
+          inputQty.value = SELECIONADOS[cod].qtd;
+        }
+        return;
+      }
+      if (v % multiplo !== 0) {
+        v = Math.ceil(v / multiplo) * multiplo;
+        showToast(`Corrigido para ${v} (múltiplo de ${multiplo})`);
+      }
+      SELECIONADOS[cod].qtd = v;
+      calcularTudo();
+    });
+
+    ctrlEl.appendChild(btnMenos);
+    ctrlEl.appendChild(inputQty);
+    ctrlEl.appendChild(btnMais);
+
+    // Botão remover
+    let rmBtn = document.createElement('button');
+    rmBtn.className = 'cart-rm-btn';
+    rmBtn.title = 'Remover';
+    rmBtn.textContent = '✕';
+    rmBtn.addEventListener('click', () => {
+      delete SELECIONADOS[cod];
+      calcularTudo();
+    });
+
+    div.appendChild(imgEl);
+
+    // Wrapper direito: info + controles + botão remover
+    let rightEl = document.createElement('div');
+    rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
+
+    let topRowEl = document.createElement('div');
+    topRowEl.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:6px;';
+    topRowEl.appendChild(infoEl);
+    topRowEl.appendChild(rmBtn);
+
+    rightEl.appendChild(topRowEl);
+    rightEl.appendChild(ctrlEl);
+
+    div.appendChild(rightEl);
+    hd.appendChild(div);
+  });
+
+  // Restaura scroll
+  hd.scrollTop = scrollTop;
+
+  let rh = document.getElementById('cart-header-resumo');
+  if (rh) rh.innerText = `${chaves.length} produto${chaves.length > 1 ? 's' : ''} · ${totalCx} cx`;
+}
+
 function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
 
 function alterouUF(id) {
@@ -341,7 +512,6 @@ function calcularTudo() {
   let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
   if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
 
-  // 1ª passagem: calcula o total líquido com a tabela BASE para decidir a tabela definitiva
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela = icmsBase === "7" ? 5000 : 2500;
   let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
@@ -352,8 +522,6 @@ function calcularTudo() {
   let subtotalBrutoInicial = somarBrutoPrevia();
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
-  let hd = document.getElementById('lista-d');
-  hd.innerHTML = '';
 
   Object.keys(SELECIONADOS).forEach(c => {
     let item = SELECIONADOS[c];
@@ -372,25 +540,17 @@ function calcularTudo() {
     listaItensPdf.push({
       fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
       valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
-      valorComIpi: valorItemComIpi, 
+      valorComIpi: valorItemComIpi,
       valorTotalItem: valorTotalItemDescIpi,
-      // AJUSTADO: Força formatação com pontuação/separador de milhar pt-BR para a última coluna do PDF
       valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      // AJUSTADO: Parâmetros para indicar aumento de 50% na foto e quebra/compensação na coluna da descrição
       fotoLarguraAumento: 1.50,
       quebraTextoDescricao: true,
       colunaDescricaoLargura: "menor"
     });
-
-    hd.innerHTML += `<div class="sel-row">
-      <div class="sel-cod">${p.codigo}</div>
-      <div class="sel-desc">${p.descricao}</div>
-      <div class="sel-qty-wrap">${qty} cx</div>
-      <div class="sel-rm" onclick="rmItem('${c}')">✕</div>
-    </div>`;
   });
 
-  if (contItens === 0) { hd.innerHTML = '<div class="vazio">Carrinho vazio</div>'; }
+  // Renderiza o carrinho separadamente
+  renderizarCarrinho(tabelaAtiva);
 
   document.getElementById('badge').innerText = `${contItens} itens`;
   document.getElementById('badge').style.display = contItens > 0 ? 'inline-block' : 'none';
@@ -406,8 +566,6 @@ function calcularTudo() {
   else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
 
   let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
-  
-  // AJUSTADO: Novo cálculo do Valor de Produto (subtotal - prazo) solicitado para o bloco final do PDF
   let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
 
   DADOS_PDF_PRONTO = {
@@ -415,15 +573,14 @@ function calcularTudo() {
     logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
     codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
     clienteInfo: '', observacoes: '',
-    contas: { 
-      subtotal: subtotalProdutos, 
-      pctPrazo: prazoBase, 
-      valPrazo: valDescPrazo, 
-      valorProduto: valorProdutoCalculado, // AJUSTADO: Novo campo estruturado
-      totalIpi, 
-      valorFrete: freteVal > 0 ? freteVal : 0, 
+    contas: {
+      subtotal: subtotalProdutos,
+      pctPrazo: prazoBase,
+      valPrazo: valDescPrazo,
+      valorProduto: valorProdutoCalculado,
+      totalIpi,
+      valorFrete: freteVal > 0 ? freteVal : 0,
       liquido: totalLiquido,
-      // AJUSTADO: Versões textuais com pontuações de milhar garantidas para exibição do cabeçalho de totais
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -812,138 +969,286 @@ function enviarPdfManual() {
 }
 
 // =============================================
-// EDITAR PEDIDO — IMPORTAR PDF E RECARREGAR CARRINHO
+// IMPORTAR PEDIDO VIA PDF (EDITAR PEDIDO)
+// Usa PDF.js localmente — sem API, sem custo
 // =============================================
-function editarPedido() {
+
+// Carrega PDF.js sob demanda (só quando precisar)
+function carregarPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    let script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    script.onerror = () => reject(new Error("Falha ao carregar leitor de PDF."));
+    document.head.appendChild(script);
+  });
+}
+
+// Extrai todo o texto do PDF página a página
+async function extrairTextoPdf(file) {
+  let arrayBuffer = await file.arrayBuffer();
+  let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let textoTotal = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    let page = await pdf.getPage(i);
+    let content = await page.getTextContent();
+    // Junta itens de texto com espaço, quebra de página entre páginas
+    let linhas = content.items.map(it => it.str).join(' ');
+    textoTotal += linhas + '\n';
+  }
+  return textoTotal;
+}
+
+// Parseia o texto extraído do PDF di solle para dados estruturados
+function parsearPedidoDiSolle(texto) {
+  let resultado = {
+    cliente: { cnpj:'', razao:'', fantasia:'', telefone:'', endereco:'',
+               estado:'', bairro:'', municipio:'', numero:'', cep:'', email:'', obs:'' },
+    prazo: '',
+    estado_destino: '',
+    itens: []
+  };
+
+  // Normaliza espaços múltiplos
+  let t = texto.replace(/\s+/g, ' ');
+
+  // ---- DADOS DO CLIENTE ----
+  let campo = (label, proxLabels) => {
+    let pattern = label + '\\s*[:\\-]?\\s*([\\s\\S]+?)(?=' + proxLabels + '|$)';
+    let m = t.match(new RegExp(pattern, 'i'));
+    return m ? m[1].trim().replace(/\s+/g, ' ') : '';
+  };
+
+  // CNPJ
+  let cnpjM = t.match(/CNPJ[\s\/CPF]*[:\-]?\s*([\d.\-\/]+)/i);
+  resultado.cliente.cnpj = cnpjM ? cnpjM[1].trim() : '';
+
+  // Razão Social
+  let razaoM = t.match(/Raz[aã]o Social[:\-]?\s*([^\n]+?)(?=Fantasia|Telefone|Endere)/i);
+  resultado.cliente.razao = razaoM ? razaoM[1].trim() : '';
+
+  // Fantasia
+  let fantasiaM = t.match(/Fantasia[:\-]?\s*([^\n]+?)(?=Telefone|Endere|CNPJ|$)/i);
+  resultado.cliente.fantasia = fantasiaM ? fantasiaM[1].trim() : '';
+
+  // Telefone
+  let telM = t.match(/Telefone[:\-]?\s*([\d\s\(\)\-]+?)(?=Endere|Estado|Bairro|CEP|$)/i);
+  resultado.cliente.telefone = telM ? telM[1].trim() : '';
+
+  // Endereço
+  let endM = t.match(/Endere[çc]o[:\-]?\s*([^\n]+?)(?=Estado|Bairro|Munic|N[uú]mero|CEP|$)/i);
+  resultado.cliente.endereco = endM ? endM[1].trim() : '';
+
+  // Estado
+  let estadoM = t.match(/Estado[:\-]?\s*([A-Z]{2})(?:\s|$)/i);
+  resultado.cliente.estado = estadoM ? estadoM[1].toUpperCase() : '';
+
+  // Bairro
+  let bairroM = t.match(/Bairro[:\-]?\s*([^\n]+?)(?=Munic|N[uú]mero|CEP|Estado|$)/i);
+  resultado.cliente.bairro = bairroM ? bairroM[1].trim() : '';
+
+  // Município
+  let munM = t.match(/Munic[íi]pio[:\-]?\s*([^\n]+?)(?=N[uú]mero|CEP|E-mail|Observa|Estado|$)/i);
+  resultado.cliente.municipio = munM ? munM[1].trim() : '';
+
+  // Número
+  let numM = t.match(/N[uú]mero[:\-]?\s*(\d+)/i);
+  resultado.cliente.numero = numM ? numM[1].trim() : '';
+
+  // CEP
+  let cepM = t.match(/CEP[:\-]?\s*([\d\-]+)/i);
+  resultado.cliente.cep = cepM ? cepM[1].trim() : '';
+
+  // Email
+  let emailM = t.match(/E-?mail[:\-]?\s*([\w.\-+]+@[\w.\-]+)/i);
+  resultado.cliente.email = emailM ? emailM[1].trim() : '';
+
+  // Observações
+  let obsM = t.match(/Observa[çc][oõ]es[:\-]?\s*([^\n]+?)(?=Estado Destino|Prazo|Foto|$)/i);
+  resultado.cliente.obs = obsM ? obsM[1].trim() : '';
+
+  // ---- ESTADO DESTINO e PRAZO ----
+  let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
+  resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
+
+  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*([^\|]+?)(?:\s*\||$)/i);
+  resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
+
+  // ---- ITENS ----
+  // Padrão de linha: CODIGO  DESCRICAO  QTD  ...
+  // Código Di Solle: 13 dígitos numéricos
+  let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z].+?)\s+(\d{1,4})\s+R\$/g)];
+  
+  if (linhasItens.length === 0) {
+    // Fallback: tenta 10+ dígitos seguidos de texto e quantidade
+    linhasItens = [...t.matchAll(/(\d{10,15})\s+\S.{5,80?}\s+(\d{1,4})\s+R\$/g)];
+    linhasItens.forEach(m => {
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[2]) });
+    });
+  } else {
+    linhasItens.forEach(m => {
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
+    });
+  }
+
+  // Remove duplicatas (mesmo código, soma qtds se aparecer mais de uma vez)
+  let itensMapa = {};
+  resultado.itens.forEach(it => {
+    if (itensMapa[it.codigo]) {
+      itensMapa[it.codigo].qtd += it.qtd;
+    } else {
+      itensMapa[it.codigo] = { ...it };
+    }
+  });
+  resultado.itens = Object.values(itensMapa);
+
+  return resultado;
+}
+
+async function importarPedidoPdf() {
   let fileInput = document.getElementById('file-manual');
   if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
   let file = fileInput.files[0];
 
-  // Mostra loading
-  let loadingDiv = document.getElementById('loading-import');
-  if (loadingDiv) { loadingDiv.style.display = 'flex'; }
+  fecharModalUpload();
+  document.getElementById('modal-importando').style.display = 'flex';
+  document.getElementById('modal-importando').classList.add('open');
 
-  // Carrega pdfjs dinamicamente se ainda não foi carregado
-  function runParse(pdfData) {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    pdfjsLib.getDocument({ data: pdfData }).promise.then(function(pdf) {
-      let allTextPromises = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        allTextPromises.push(
-          pdf.getPage(i).then(page => page.getTextContent()).then(tc => tc.items.map(it => it.str).join(' '))
-        );
-      }
-      return Promise.all(allTextPromises);
-    }).then(function(pages) {
-      let textoCompleto = pages.join('\n');
-      let itensEncontrados = parsearItensDoPdf(textoCompleto);
+  try {
+    document.getElementById('import-status-txt').innerText = 'Carregando leitor de PDF...';
+    await carregarPdfJs();
 
-      if (loadingDiv) loadingDiv.style.display = 'none';
+    document.getElementById('import-status-txt').innerText = 'Lendo o arquivo PDF...';
+    let texto = await extrairTextoPdf(file);
 
-      if (itensEncontrados.length === 0) {
-        alert("Erro ao importar pedido: Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
-        return;
-      }
+    document.getElementById('import-status-txt').innerText = 'Identificando cliente e itens...';
+    let pedido = parsearPedidoDiSolle(texto);
 
-      // Limpa carrinho atual e recarrega com os itens do PDF
-      SELECIONADOS = {};
-      let naoEncontrados = [];
+    if (pedido.itens.length === 0) {
+      throw new Error("Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
+    }
 
-      itensEncontrados.forEach(function(item) {
-        // Busca o produto pelo código (case-insensitive, ignora espaços)
-        let codBusca = item.codigo.toLowerCase().trim();
-        let produto = PRODUTOS.find(function(p) {
-          return p.codigo.toLowerCase().trim() === codBusca ||
-                 normalizarCodigo(p.codigo) === normalizarCodigo(item.codigo);
-        });
+    // Aguarda produtos carregados
+    if (PRODUTOS.length === 0) {
+      document.getElementById('import-status-txt').innerText = 'Carregando catálogo...';
+      await carregarDados();
+    }
 
-        if (produto) {
-          let key = produto.codigo.toLowerCase().trim();
-          SELECIONADOS[key] = { produto: produto, qtd: item.qtd };
-        } else {
-          naoEncontrados.push(item.codigo);
-        }
-      });
-
-      fecharModalUpload();
-      calcularTudo();
-      showToast("✅ Pedido importado! " + itensEncontrados.length + " iten(s) carregado(s)" + (naoEncontrados.length ? " | " + naoEncontrados.length + " não encontrado(s): " + naoEncontrados.join(', ') : "") + ".");
-
-    }).catch(function(err) {
-      if (loadingDiv) loadingDiv.style.display = 'none';
-      alert("Erro ao ler o PDF: " + err.message);
+    // Preenche campos do cliente
+    let cli = pedido.cliente;
+    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
+      let el = document.getElementById('cli-' + f);
+      if (el && cli[f]) el.value = cli[f];
     });
-  }
 
-  let reader = new FileReader();
-  reader.onload = function(e) {
-    let arrayBuffer = e.target.result;
-
-    if (typeof pdfjsLib !== 'undefined') {
-      runParse(arrayBuffer);
-    } else {
-      // Carrega pdfjs dinamicamente
-      let script = document.createElement('script');
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-      script.onload = function() { runParse(arrayBuffer); };
-      script.onerror = function() {
-        if (loadingDiv) loadingDiv.style.display = 'none';
-        alert("Erro ao carregar leitor de PDF. Verifique sua conexão.");
-      };
-      document.head.appendChild(script);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-function normalizarCodigo(cod) {
-  return String(cod).toLowerCase().replace(/\s+/g, '').replace(/\.0$/, '').trim();
-}
-
-function parsearItensDoPdf(texto) {
-  let itens = [];
-
-  // Formato real do PDF Di Solle (extraído via pdfjs):
-  // "0199575404000 PARATY COMBO FACAS 72 PECAS A GRANEL PRETO 9 R$ 448,92 R$ 315,14 (7,80%) R$ 483,94 R$ 4.355,42"
-  //
-  // Estrutura:  [CODIGO]  [DESCRIÇÃO — pode ter números no meio]  [QTD]  R$ [valor],nn  ...
-  //
-  // ESTRATÉGIA SEGURA:
-  // 1. Varrer todos os produtos carregados no catálogo (PRODUTOS)
-  // 2. Para cada produto, buscar seu código exato no texto do PDF
-  // 3. Após o código, capturar o primeiro número inteiro que esteja imediatamente
-  //    antes de "R$" — esse é a quantidade, pois a estrutura é:
-  //    [codigo] [descrição] [qtd] R$ [valor]
-  //    O "R$" serve de âncora segura, evitando confundir números da descrição (ex: 72)
-  //    com a quantidade.
-
-  let texto_limpo = texto.replace(/\s+/g, ' ').trim();
-
-  PRODUTOS.forEach(function(p) {
-    let codNorm = normalizarCodigo(p.codigo);
-
-    // Escapa o código para uso em regex
-    let codEscapado = p.codigo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-    // Regex: CODIGO + qualquer coisa (descrição com possíveis números) + (número inteiro) + R$
-    // O (\d+) captura a QTD — o último número antes de "R$"
-    // Usa [\s\S]*? para ser não-guloso e parar no primeiro R$ encontrado
-    let re = new RegExp(codEscapado + '[\\s\\S]*?\\s(\\d+)\\s+R\\$', 'i');
-    let m = texto_limpo.match(re);
-
-    if (m) {
-      let qtd = parseInt(m[1]);
-      // Qtd razoável e não é um número de CNP/telefone/CEP (limite superior 9999)
-      if (qtd >= 1 && qtd <= 9999) {
-        // Evita duplicatas
-        if (!itens.find(i => normalizarCodigo(i.codigo) === codNorm)) {
-          itens.push({ codigo: p.codigo, qtd: qtd });
-        }
+    // Define UF destino
+    let uf = (pedido.estado_destino || cli.estado || '').toUpperCase().trim();
+    if (uf) {
+      let optD = document.querySelector(`#uf-d option[value="${uf}"]`);
+      if (optD) {
+        document.getElementById('uf-d').value = uf;
+        document.getElementById('uf-m').value = uf;
       }
     }
-  });
 
-  return itens;
+    // Configura prazo
+    let prazoStr = pedido.prazo;
+    let avisos = [];
+    let prazoEncontrado = false;
+
+    if (prazoStr) {
+      // Procura em SUB_PRAZOS
+      for (let [val, opcoes] of Object.entries(SUB_PRAZOS)) {
+        if (opcoes.includes(prazoStr)) {
+          document.getElementById('prazo-d').value = val;
+          document.getElementById('prazo-m').value = val;
+          alterouPrazoBase('prazo-d', 'prazo-m');
+          setTimeout(() => {
+            ['subprazo-d','subprazo-m'].forEach(id => {
+              let sel = document.getElementById(id);
+              if (sel) for (let opt of sel.options) { if (opt.value === prazoStr) { sel.value = prazoStr; break; } }
+            });
+          }, 150);
+          prazoEncontrado = true;
+          break;
+        }
+      }
+      // Prazo simples
+      if (!prazoEncontrado) {
+        const MAP = { "28 DIAS":"9","35 DIAS":"7","42 DIAS":"5","56 DIAS":"2","63 DIAS":"0","ANTECIPADO":"14" };
+        if (MAP[prazoStr]) {
+          document.getElementById('prazo-d').value = MAP[prazoStr];
+          document.getElementById('prazo-m').value = MAP[prazoStr];
+          alterouPrazoBase('prazo-d', 'prazo-m');
+          prazoEncontrado = true;
+        }
+      }
+      if (!prazoEncontrado) {
+        avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente — selecione manualmente.`);
+      }
+    }
+
+    // Importa itens para SELECIONADOS
+    SELECIONADOS = {};
+    let itensImportados = 0;
+    let itensFaltantes = [];
+
+    pedido.itens.forEach(item => {
+      let codBusca = String(item.codigo).trim().toLowerCase();
+      let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBusca)
+               || PRODUTOS.find(p => p.codigo.replace(/^0+/,'') === codBusca.replace(/^0+/,''));
+
+      if (prod) {
+        let key = prod.codigo.toLowerCase().trim();
+        let qtdMin = prod.qtdEmbalagem || 1;
+        let qtd = parseInt(item.qtd) || qtdMin;
+        if (qtd % qtdMin !== 0) qtd = Math.ceil(qtd / qtdMin) * qtdMin;
+        SELECIONADOS[key] = { produto: prod, qtd };
+        itensImportados++;
+      } else {
+        itensFaltantes.push(item.codigo);
+      }
+    });
+
+    calcularTudo();
+
+    document.getElementById('modal-importando').classList.remove('open');
+    document.getElementById('modal-importando').style.display = 'none';
+    fileInput.value = '';
+
+    if (itensFaltantes.length > 0) {
+      avisos.push(`⚠️ ${itensFaltantes.length} item(ns) não encontrado(s) no catálogo: ${itensFaltantes.join(', ')}`);
+    }
+
+    document.getElementById('import-resumo-txt').innerText =
+      `${itensImportados} item(ns) carregado(s) com sucesso.\nCliente: ${cli.razao || '-'}\nPrazo: ${prazoStr || '-'}`;
+
+    let avisosEl = document.getElementById('import-avisos');
+    if (avisos.length > 0) {
+      avisosEl.innerHTML = avisos.map(a => `<div style="margin-bottom:4px;">${a}</div>`).join('');
+      avisosEl.style.display = 'block';
+    } else {
+      avisosEl.style.display = 'none';
+    }
+
+    document.getElementById('modal-importado').style.display = 'flex';
+    document.getElementById('modal-importado').classList.add('open');
+
+  } catch (err) {
+    document.getElementById('modal-importando').classList.remove('open');
+    document.getElementById('modal-importando').style.display = 'none';
+    alert("Erro ao importar pedido: " + err.message);
+  }
+}
+
+function fecharModalImportado() {
+  document.getElementById('modal-importado').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-importado').style.display = 'none', 300);
 }
 
 // =============================================
