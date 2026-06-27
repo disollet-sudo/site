@@ -221,9 +221,9 @@
         PDF
       </button>
       <!-- Ícone: Novo cliente -->
-      <button class="action-icon-btn" onclick="abrirModalNovoCliente()" title="Adicionar Novo Cliente">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
-        Novo
+      <button class="action-icon-btn" onclick="abrirModalNovoCliente()" title="Editar / Adicionar Cliente">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        Editar
       </button>
       <!-- Ícone: Buscar cliente -->
       <button class="action-icon-btn" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base">
@@ -257,9 +257,6 @@
     <span class="linha-chip" data-linha="OCEANO" onclick="filtrarLinha(this)">Oceano</span>
     <span class="linha-chip" data-linha="CLASSICA" onclick="filtrarLinha(this)">Clássica</span>
     <span class="linha-chip" data-linha="UNIVERSO" onclick="filtrarLinha(this)">Universo</span>
-    <span class="linha-chip" data-linha="NOBILE" onclick="filtrarLinha(this)">Nobile</span>
-    <span class="linha-chip" data-linha="MAGNUM" onclick="filtrarLinha(this)">Magnum</span>
-    <span class="linha-chip" data-linha="ZEUS" onclick="filtrarLinha(this)">Zeus</span>
   </div>
 </div>
 
@@ -405,22 +402,59 @@
 
 <script src="app.js"></script>
 
-<!-- Lógica dos chips de linha -->
+<!-- Extensão: chips de linha + override do filtrar() -->
 <script>
 (function(){
   var linhaAtiva = '';
+
   window.filtrarLinha = function(el){
     document.querySelectorAll('.linha-chip').forEach(function(c){ c.classList.remove('ativa'); });
     el.classList.add('ativa');
     linhaAtiva = el.dataset.linha || '';
-    // Aciona filtro principal se existir
-    if(typeof filtrar === 'function') filtrar();
+    if(typeof _filtrarOriginal === 'function') _filtrarOriginal();
   };
 
-  // Expõe a linha ativa para app.js usar se necessário
-  Object.defineProperty(window, 'linhaChipAtiva', {
-    get: function(){ return linhaAtiva; }
-  });
+  // Aguarda app.js carregar a função filtrar e então a estende
+  function patchFiltrar(){
+    if(typeof filtrar !== 'function'){ setTimeout(patchFiltrar, 50); return; }
+    window._filtrarOriginal = filtrar;
+    window.filtrar = function(){
+      var b = document.getElementById('busca').value.toLowerCase();
+      var promo = document.getElementById('fil-promo').value;
+      var pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
+
+      // Calcula tabela ativa (igual ao app.js original)
+      var uf = document.getElementById('uf-d').value;
+      var icmsBase = (["RS","SC","PR","SP","MG","RJ"].includes(uf)) ? "12" : "7";
+      var prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
+      var pctPrazo2 = (100 - prazoBase2) / 100;
+      var tabelaBase2 = icmsBase === "7" ? "M26071" : "M26121";
+      var limiteTabela2 = icmsBase === "7" ? 5000 : 2500;
+      var liquidoPrevia2 = calcularTotalLiquidoComTabela(tabelaBase2, pctPrazo2, uf);
+      var tabelaFiltro = (liquidoPrevia2 <= limiteTabela2)
+        ? tabelaBase2
+        : (icmsBase === "7" ? "M26072" : "M26122");
+
+      var f = PRODUTOS.filter(function(p){
+        var preco = p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro];
+        if(!preco) return false;
+        var mat = (p.codigo||'').toLowerCase().includes(b) ||
+                  (p.descricao||'').toLowerCase().includes(b) ||
+                  (p.codigoEan||'').includes(b);
+        if(promo === 'sim' && !p.emPromocao) mat = false;
+        if(pMax > 0 && preco > pMax) mat = false;
+        // Filtro por linha (chip)
+        if(linhaAtiva){
+          var desc = (p.descricao||'').toUpperCase();
+          if(!desc.includes(linhaAtiva)) mat = false;
+        }
+        return mat;
+      });
+      renderizar(f);
+    };
+  }
+
+  patchFiltrar();
 })();
 </script>
 </body>
