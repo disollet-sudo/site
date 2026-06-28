@@ -680,32 +680,35 @@ header{
 
 /* --- CHIPS DE LINHA --- */
 .linhas-wrap{background:var(--branco);border-bottom:1px solid var(--borda);padding:0 20px;overflow-x:auto;}
-.linhas-inner{display:flex;gap:6px;padding:8px 0;white-space:nowrap;min-width:max-content;}
+.linhas-inner{display:flex;gap:6px;padding:8px 0;white-space:nowrap;}
 .linha-chip{display:inline-block;padding:5px 14px;border-radius:20px;border:1.5px solid var(--borda);font-size:12px;font-weight:600;color:var(--sub);cursor:pointer;background:var(--branco);transition:all .15s;user-select:none;}
 .linha-chip:hover{border-color:var(--verde);color:var(--verde);}
 .linha-chip.ativa{background:var(--verde);border-color:var(--verde);color:#fff;}
 
-/* --- BOTÕES DE AÇÃO NO HEADER (PDF / Clientes / Criar) --- */
-.action-icon-btn{display:flex;flex-direction:column;align-items:center;gap:3px;padding:5px 10px;border:1px solid var(--borda);border-radius:8px;background:var(--branco);font-size:10px;font-weight:700;color:var(--sub);cursor:pointer;transition:all .15s;white-space:nowrap;}
+/* --- BOTÕES DE AÇÃO NO TOPO (Editar / Clientes / Criar) --- */
+.action-icon-btn{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 10px;border:1px solid var(--borda);border-radius:8px;background:var(--branco);font-size:10px;font-weight:700;color:var(--sub);cursor:pointer;transition:all .15s;white-space:nowrap;line-height:1.2;}
 .action-icon-btn svg{display:block;}
 .action-icon-btn:hover{border-color:var(--verde);color:var(--verde);}
 
 /* --- PAINEL LATERAL REDESENHADO --- */
-.painel-header-btn{width:100%;padding:10px 14px;background:var(--verde);border:none;border-radius:8px;color:#fff;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s;}
+/* Botão carrinho menor para caber tudo */
+.painel-header-btn{width:100%;padding:8px 12px;background:var(--verde);border:none;border-radius:8px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;transition:background .15s;}
 .painel-header-btn:hover{background:var(--verde-dk);}
 
-.painel-config{padding:12px 16px 0;border-bottom:1px solid var(--borda);}
+.painel-config{padding:10px 14px 8px;border-bottom:1px solid var(--borda);}
+.painel-config .field{margin-bottom:8px;}
 .painel-config-row{display:flex;gap:8px;}
+.painel-config-row .field{margin-bottom:0;}
 
-.painel-totais{padding:10px 16px;flex:1;font-size:13px;}
-.painel-totais .res-row{display:flex;justify-content:space-between;margin-bottom:5px;}
+.painel-totais{padding:8px 14px;flex:1;font-size:12px;}
+.painel-totais .res-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
 .painel-totais .res-row span:first-child{color:var(--sub);font-weight:500;}
-.painel-totais .res-row b{color:var(--verde-dk);}
-.painel-totais .total-row{border-top:1px solid var(--borda);padding-top:8px;margin-top:6px;font-size:14px;font-weight:700;}
+.painel-totais .res-row b{color:var(--verde-dk);font-size:12px;}
+.painel-totais .total-row{border-top:1px solid var(--borda);padding-top:7px;margin-top:4px;font-size:13px;font-weight:700;}
 .painel-totais .total-row span{color:var(--texto);}
-.tabela-tag{background:var(--verde-lt);color:var(--verde-dk);border-radius:4px;padding:2px 7px;font-size:11px;font-weight:700;}
+.tabela-tag{background:var(--verde-lt);color:var(--verde-dk);border-radius:4px;padding:2px 6px;font-size:11px;font-weight:700;}
 
-.painel-footer{padding:10px 16px 14px;border-top:1px solid var(--borda);display:flex;flex-direction:column;gap:6px;}
+.painel-footer{padding:8px 14px 12px;border-top:1px solid var(--borda);display:flex;flex-direction:column;gap:6px;flex-shrink:0;}
 .painel-footer .btn{margin-bottom:0;}
 .pf-row{display:flex;gap:6px;}
-.pf-row .btn{flex:1;margin-bottom:0;padding:9px 6px;font-size:12px;}
+.pf-row .btn{flex:1;margin-bottom:0;padding:8px 4px;font-size:11px;}
