@@ -159,10 +159,32 @@ function sincronizarPlanilha() {
 }
 
 // =============================================
+// BUSCA INTELIGENTE (multi-palavra, sem acento, em qualquer ordem)
+// =============================================
+function normalizarTexto(txt) {
+  return (txt || '')
+    .toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toLowerCase()
+    .trim();
+}
+
+// Retorna true se TODAS as palavras digitadas aparecerem (em qualquer ordem)
+// em algum dos campos informados. Ex: "millenium faca" casa com
+// "FACA CHURRASCO MILLENIUM INOX" mesmo não estando na mesma ordem/adjacência.
+function buscaInteligente(campos, termo) {
+  let termoNorm = normalizarTexto(termo);
+  if (!termoNorm) return true;
+  let tokens = termoNorm.split(/\s+/).filter(Boolean);
+  let textoCompleto = normalizarTexto(campos.filter(Boolean).join(' '));
+  return tokens.every(tok => textoCompleto.includes(tok));
+}
+
+// =============================================
 // CATÁLOGO — FILTROS E RENDERIZAÇÃO
 // =============================================
 function filtrar() {
-  let b = document.getElementById('busca').value.toLowerCase();
+  let b = document.getElementById('busca').value;
   let promo = document.getElementById('fil-promo').value;
   let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
 
@@ -181,9 +203,7 @@ function filtrar() {
   let f = PRODUTOS.filter(p => {
     let preco = p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro];
     if (!preco) return false;
-    let mat = (p.codigo || '').toLowerCase().includes(b) ||
-              (p.descricao || '').toLowerCase().includes(b) ||
-              (p.codigoEan || '').includes(b);
+    let mat = buscaInteligente([p.codigo, p.descricao, p.codigoEan], b);
     if (promo === 'sim' && !p.emPromocao) mat = false;
     if (pMax > 0 && preco > pMax) mat = false;
     return mat;
@@ -778,7 +798,7 @@ function fecharModalDetalhesCliente() {
 }
 
 function executarBuscaCliente() {
-  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
+  let v = document.getElementById('input-busca-cliente').value.trim();
   if (!v) { alert("Digite algum parâmetro para pesquisar."); return; }
 
   document.getElementById('loading-modal').style.display = 'flex';
@@ -792,15 +812,12 @@ function executarBuscaCliente() {
 }
 
 function filtrarClientesBusca() {
-  let v = document.getElementById('input-busca-cliente').value.toLowerCase().trim();
+  let v = document.getElementById('input-busca-cliente').value.trim();
   let container = document.getElementById('lista-busca-clientes');
   container.innerHTML = '';
 
   let filtrados = CLIENTES.filter(c =>
-    (c.cnpj || '').toLowerCase().includes(v) ||
-    (c.fantasia || '').toLowerCase().includes(v) ||
-    (c.razao || '').toLowerCase().includes(v) ||
-    (c.municipio || '').toLowerCase().includes(v)
+    buscaInteligente([c.cnpj, c.fantasia, c.razao, c.municipio, c.estado], v)
   );
 
   if (filtrados.length === 0) { container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>'; return; }
