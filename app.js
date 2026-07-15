@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbzWV2tyYzbdFsA_tK5DqVNcyuhgE-aHCNEc3tF0VGuq1DRUz0qCjGGIhdcpstyLM64R6A/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbxgaEF67B11e8X3SPkKCNtZc62qp1Fir-7ANqjbCYfzG8vAiyGcIFBte3A9KvJBOqQrEw/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -19,6 +19,11 @@ let BLOQUEIA_SALVAMENTO_CNPJ = false;
 const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
 let TABELA_KNE825 = {};                         // { codNorm: precoUnit } vindo do GS
 let CLIENTE_ESPECIAL_ATIVO = false;             // true quando KNE825 selecionado + prazo 28 dias
+
+// --- TABELA ESPECIAL MILLENIUM (prazo Antecipado 42/63 dias, pedido acima do mínimo) ---
+let TABELA_MILLENIUM = {};                      // { codNorm: { "42": precoUnit, "63": precoUnit } } vindo do GS
+const LIMITE_MILLENIUM = { "7": 5000, "12": 3000 }; // ICMS 7% > R$5.000 | ICMS 12% > R$3.000
+const PRAZO_PARA_CHAVE_MILLENIUM = { "5": "42", "0": "63" }; // value do select prazo-d -> chave da tabela
 
 // Tabela de prazos e opções de desmembramento
 const SUB_PRAZOS = {
@@ -102,7 +107,49 @@ function getPrecoFinal(produto, tabelaNormal) {
     let esp = getPrecoEspecialKNE825(produto);
     if (esp !== null) return esp;
   }
+  let chaveMillenium = verificarRegraMillenium();
+  if (chaveMillenium) {
+    let espM = getPrecoEspecialMillenium(produto, chaveMillenium);
+    if (espM !== null) return espM;
+  }
   return produto.emPromocao ? (produto.precosPromo[tabelaNormal] || 0) : (produto.precos[tabelaNormal] || 0);
+}
+
+// =============================================
+// TABELA ESPECIAL MILLENIUM
+// =============================================
+function getPrecoEspecialMillenium(produto, chavePrazo) {
+  let codNorm = produto.codigo.toLowerCase().trim();
+  let entry = TABELA_MILLENIUM[codNorm];
+  if (!entry) {
+    let sem0 = codNorm.replace(/^0+/, '');
+    for (let k of Object.keys(TABELA_MILLENIUM)) {
+      if (k.replace(/^0+/, '') === sem0) { entry = TABELA_MILLENIUM[k]; break; }
+    }
+  }
+  if (!entry) return null;
+  let preco = entry[chavePrazo];
+  return (preco !== undefined && preco > 0) ? preco : null;
+}
+
+// Retorna "42", "63" se a regra especial Millenium estiver ativa nas condições atuais, ou null caso contrário.
+// Regra: ICMS 7% com pedido acima de R$5.000, ou ICMS 12% com pedido acima de R$3.000,
+// E prazo selecionado for Antecipado 42 dias ou Antecipado 63 dias.
+function verificarRegraMillenium() {
+  if (Object.keys(TABELA_MILLENIUM).length === 0) return null;
+
+  let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+
+  let prazoVal = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
+  let chavePrazo = PRAZO_PARA_CHAVE_MILLENIUM[prazoVal];
+  if (!chavePrazo) return null; // só se aplica quando o prazo for 42 ou 63 dias
+
+  let limite = LIMITE_MILLENIUM[icmsBase];
+  let bruto = somarBrutoPrevia();
+  if (bruto <= limite) return null; // precisa ser MAIS de 5 mil (ICMS7) ou MAIS de 3 mil (ICMS12)
+
+  return chavePrazo;
 }
 
 function verificarModoEspecial() {
@@ -134,6 +181,7 @@ async function carregarDados(force = false) {
     FRETE_REGRAS = d.freteRegras || {};
     CLIENTES = d.clientes || [];
     TABELA_KNE825 = d.tabelaKNE825 || {};
+    TABELA_MILLENIUM = d.tabelaMillenium || {};
 
     let ufs = d.estados || Object.keys(FRETE_REGRAS);
     let ufd = document.getElementById('uf-d'), ufm = document.getElementById('uf-m');
@@ -641,6 +689,7 @@ function calcularTudo() {
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   let subtotalBrutoInicial = somarBrutoPrevia();
+  let chaveMilleniumAtiva = verificarRegraMillenium(); // "42", "63" ou null
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
 
@@ -718,7 +767,7 @@ function calcularTudo() {
   };
 
   const upd = (prefix) => {
-    document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
+    document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva + (chaveMilleniumAtiva ? ` (+ MILLENIUM Antecipado ${chaveMilleniumAtiva} dias)` : '');
     // Subtotal exibe o valor já com desconto do prazo aplicado
     document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
     document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
