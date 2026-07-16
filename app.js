@@ -1,845 +1,1468 @@
-/**
- * DI SOLLE - SISTEMA DE CATÁLOGO E PEDIDOS DE COMPRA
- * Código Frontend Completo (app.js)
- */
+/* =============================================
+   Di Solle — Lógica Principal do App
+   Para adicionar funcionalidades, mexa aqui.
+   ============================================= */
 
-// ==========================================
-// 1. CONFIGURAÇÕES E ESTADO GLOBAL
-// ==========================================
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycby-FXWeJgJ3IhkJQDDr-LoTke2ka5dqRJ-rttfGhWjAwv08Dme_1wqfj2Bb0e5Irp2R1g/exec";
 
-// IMPORTANTE: Substitui pela URL gerada ao publicar o teu Web App no Google Apps Script
-const API_URL = "https://script.google.com/macros/s/AKfycbzbCwKFzvwzgwGT0U_k49Z7aI5SQFSL7KAro9UqOBmtW4aSSCyB2ZQIPE04ztQeh4tVpA/exec"; 
-
+// --- ESTADO GLOBAL ---
 let PRODUTOS = [];
 let CLIENTES = [];
-let ESTADOS = [];
+let SELECIONADOS = {};
+let DADOS_PDF_PRONTO = null;
 let FRETE_REGRAS = {};
-let TABELA_KNE825 = {};
-let TABELA_MILLENIUM = {};
-let LOGO_URL = "";
-
-let CARRINHO = [];
-let CLIENTE_SELECIONADO = null;
-let TABELA_PRECO_SELECIONADA = "A"; // Padrão da Tabela
-let ESTADO_SELECIONADO = "";
-let PRAZO_SELECIONADO = "";
-let CODIGO_REPRESENTANTE = localStorage.getItem("cod_representante") || "";
-let FILTRO_PROMO = false;
-let FILTRO_BUSCA = "";
-
-// Evita submissões duplicadas
-let ENVIANDO_PEDIDO = false;
+let CODIGO_REPRE = localStorage.getItem('repre_cod') || "";
+let PRODUTO_MODAL_ATIVO = null;
 let BLOQUEIA_SALVAMENTO_CNPJ = false;
 
-// ==========================================
-// 2. INICIALIZAÇÃO DA APLICAÇÃO
-// ==========================================
+// --- CLIENTE ESPECIAL KNE825 ---
+const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
+let TABELA_KNE825 = {};                         // { codNorm: precoUnit } vindo do GS
+let CLIENTE_ESPECIAL_ATIVO = false;             // true quando KNE825 selecionado + prazo 28 dias
 
-document.addEventListener("DOMContentLoaded", () => {
-  inicializarUI();
-  carregarDadosIniciais();
+// --- TABELA ESPECIAL MILLENIUM (prazo Antecipado 42/63 dias, pedido acima do mínimo) ---
+let TABELA_MILLENIUM = {};                      // { codNorm: { "42": precoUnit, "63": precoUnit } } vindo do GS
+const LIMITE_MILLENIUM = { "7": 5000, "12": 3000 }; // ICMS 7% > R$5.000 | ICMS 12% > R$3.000
+const PRAZO_PARA_CHAVE_MILLENIUM = { "5": "42", "0": "63", "14": "antecipado" }; // value do select prazo-d -> chave da tabela
+
+// Tabela de prazos e opções de desmembramento
+const SUB_PRAZOS = {
+  "9": ["28 DIAS","14/42 DIAS","21/35 DIAS","14/28/42 DIAS"],
+  "7": ["35 DIAS","14/56 DIAS","21/49 DIAS","28/42 DIAS","14/35/56 DIAS","21/35/49 DIAS","14/28/42/56 DIAS"],
+  "5": ["42 DIAS","28/56 DIAS","35/49 DIAS","14/42/70 DIAS","28/42/56 DIAS","21/35/49/63 DIAS","14/28/42/56/70 DIAS"],
+  "2": ["56 DIAS","28/84 DIAS","49/63 DIAS","35/56/77 DIAS","42/56/70 DIAS","35/49/63/77 DIAS","28/42/56/70/84 DIAS","21/35/49/63/77/91 DIAS"],
+  "0": ["63 DIAS","35/91 DIAS","35/63/91 DIAS","56/70 DIAS","42/63/84 DIAS","21/49/77/105 DIAS","42/56/70/84 DIAS","35/49/63/77/91 DIAS","28/42/56/70/84/98 DIAS"]
+};
+
+// =============================================
+// INICIALIZAÇÃO
+// =============================================
+window.addEventListener('DOMContentLoaded', () => {
+  if (!CODIGO_REPRE) {
+    document.getElementById('modal-repre').style.display = 'flex';
+    document.getElementById('modal-repre').classList.add('open');
+  } else {
+    document.getElementById('modal-repre').style.display = 'none';
+    document.getElementById('modal-repre').classList.remove('open');
+    atualizarExibicaoRepre();
+  }
+  carregarDados();
 });
 
-function inicializarUI() {
-  // Preencher Representante se já existir no localStorage
-  const inputRepre = document.getElementById("repre-cod");
-  if (inputRepre && CODIGO_REPRESENTANTE) {
-    inputRepre.value = CODIGO_REPRESENTANTE;
-  }
-
-  // Escuta de eventos para filtros e configurações
-  document.getElementById("repre-cod")?.addEventListener("change", (e) => {
-    CODIGO_REPRESENTANTE = e.target.value.trim();
-    localStorage.setItem("cod_representante", CODIGO_REPRESENTANTE);
-  });
-
-  document.getElementById("filtro-busca")?.addEventListener("input", (e) => {
-    FILTRO_BUSCA = e.target.value.toLowerCase().trim();
-    renderizarProdutos();
-  });
-
-  document.getElementById("btn-filtro-promo")?.addEventListener("click", () => {
-    FILTRO_PROMO = !FILTRO_PROMO;
-    const btn = document.getElementById("btn-filtro-promo");
-    if (FILTRO_PROMO) {
-      btn.classList.add("active");
-    } else {
-      btn.classList.remove("active");
-    }
-    renderizarProdutos();
-  });
-
-  document.getElementById("select-tabela")?.addEventListener("change", (e) => {
-    TABELA_PRECO_SELECIONADA = e.target.value;
-    atualizarPrecosCarrinhoEProdutos();
-  });
-
-  document.getElementById("select-estado")?.addEventListener("change", (e) => {
-    ESTADO_SELECIONADO = e.target.value.toUpperCase();
-    atualizarPrecosCarrinhoEProdutos();
-  });
-
-  document.getElementById("select-prazo")?.addEventListener("change", (e) => {
-    PRAZO_SELECIONADO = e.target.value;
-    atualizarPrecosCarrinhoEProdutos();
-  });
-
-  // Modal Novo Cliente - Autocompletar CEP
-  document.getElementById("nc-cep")?.addEventListener("blur", (e) => {
-    buscarCep(e.target.value);
-  });
+// =============================================
+// REPRESENTANTE
+// =============================================
+function salvarRepre() {
+  let val = document.getElementById('repre-codigo').value.trim();
+  if (!val) { alert("Digite o código."); return; }
+  CODIGO_REPRE = val;
+  localStorage.setItem('repre_cod', val);
+  document.getElementById('modal-repre').style.display = 'none';
+  atualizarExibicaoRepre();
+  showToast("Representante saved!");
 }
 
-// Carrega os produtos, clientes, regras de frete e tabelas especiais do backend
-async function carregarDadosIniciais(forcarAtualizacao = false) {
-  mostrarLoading(true, "A carregar catálogo de produtos...");
+function atualizarExibicaoRepre() {
+  document.getElementById('info-repre-txt').innerText = CODIGO_REPRE;
+  document.getElementById('info-repre-box').style.display = 'flex';
+}
+
+function abrirModalRepre() {
+  document.getElementById('repre-codigo').value = CODIGO_REPRE;
+  document.getElementById('modal-repre').style.display = 'flex';
+  document.getElementById('modal-repre').classList.add('open');
+}
+
+// =============================================
+// UTILITÁRIOS
+// =============================================
+function showToast(m) {
+  const t = document.getElementById('toast');
+  t.innerText = m;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+function formatDin(v) {
+  return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// =============================================
+// CLIENTE ESPECIAL KNE825
+// =============================================
+function getPrecoEspecialKNE825(produto) {
+  let codNorm = produto.codigo.toLowerCase().trim();
+  let preco = TABELA_KNE825[codNorm];
+  if (preco === undefined) {
+    let sem0 = codNorm.replace(/^0+/, '');
+    for (let k of Object.keys(TABELA_KNE825)) {
+      if (k.replace(/^0+/, '') === sem0) { preco = TABELA_KNE825[k]; break; }
+    }
+  }
+  return (preco !== undefined && preco > 0) ? preco : null;
+}
+
+function getPrecoFinal(produto, tabelaNormal) {
+  if (CLIENTE_ESPECIAL_ATIVO) {
+    let esp = getPrecoEspecialKNE825(produto);
+    if (esp !== null) return esp;
+  }
+  let chaveMillenium = verificarRegraMillenium();
+  if (chaveMillenium) {
+    let espM = getPrecoEspecialMillenium(produto, chaveMillenium);
+    if (espM !== null) return espM;
+  }
+  return produto.emPromocao ? (produto.precosPromo[tabelaNormal] || 0) : (produto.precos[tabelaNormal] || 0);
+}
+
+// =============================================
+// TABELA ESPECIAL MILLENIUM
+// =============================================
+function getPrecoEspecialMillenium(produto, chavePrazo) {
+  let codNorm = produto.codigo.toLowerCase().trim();
+  let entry = TABELA_MILLENIUM[codNorm];
+  if (!entry) {
+    let sem0 = codNorm.replace(/^0+/, '');
+    for (let k of Object.keys(TABELA_MILLENIUM)) {
+      if (k.replace(/^0+/, '') === sem0) { entry = TABELA_MILLENIUM[k]; break; }
+    }
+  }
+  if (!entry) return null;
+  let preco = entry[chavePrazo];
+  return (preco !== undefined && preco > 0) ? preco : null;
+}
+
+// Retorna "42", "63" se a regra especial Millenium estiver ativa nas condições atuais, ou null caso contrário.
+// Regra: ICMS 7% com pedido acima de R$5.000, ou ICMS 12% com pedido acima de R$3.000,
+// E prazo selecionado for Antecipado 42 dias ou Antecipado 63 dias.
+function verificarRegraMillenium() {
+  if (Object.keys(TABELA_MILLENIUM).length === 0) return null;
+
+  let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+
+  let prazoVal = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
+  let chavePrazo = PRAZO_PARA_CHAVE_MILLENIUM[prazoVal];
+  if (!chavePrazo) return null; // só se aplica quando o prazo for 42 ou 63 dias
+
+  let limite = LIMITE_MILLENIUM[icmsBase];
+  let bruto = somarBrutoPrevia();
+  if (bruto <= limite) return null; // precisa ser MAIS de 5 mil (ICMS7) ou MAIS de 3 mil (ICMS12)
+
+  return chavePrazo;
+}
+
+function verificarModoEspecial() {
+  // Ativa somente se CNPJ do cliente = KNE825 E prazo = 28 dias (valor "9")
+  let cnpjAtual = (document.getElementById('cli-cnpj') ? document.getElementById('cli-cnpj').value : '').replace(/\D/g,'');
+  let prazo = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
+  CLIENTE_ESPECIAL_ATIVO = (cnpjAtual === CNPJ_KNE825 && prazo === '9' && Object.keys(TABELA_KNE825).length > 0);
+}
+
+function ativarClienteKNE825(cnpj) {
+  let cnpjLimpo = (cnpj || '').replace(/\D/g,'');
+  if (cnpjLimpo === CNPJ_KNE825 && Object.keys(TABELA_KNE825).length > 0) {
+    document.getElementById('prazo-d').value = '9';
+    document.getElementById('prazo-m').value = '9';
+    alterouPrazoBase('prazo-d', 'prazo-m');
+    CLIENTE_ESPECIAL_ATIVO = true;
+    showToast("📋 Tabela especial KNE825 ativada — prazo 28 dias");
+  }
+}
+
+// =============================================
+// DADOS — CARREGAMENTO E SINCRONIZAÇÃO
+// =============================================
+async function carregarDados(force = false) {
   try {
-    const url = forcarAtualizacao ? `${API_URL}?atualizar=true` : API_URL;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error("Erro na comunicação com o servidor.");
-
-    const dados = await response.json();
-
-    PRODUTOS = dados.produtos || [];
-    CLIENTES = dados.clientes || [];
-    ESTADOS = dados.estados || [];
-    FRETE_REGRAS = dados.freteRegras || {};
-    TABELA_KNE825 = dados.tabelaKNE825 || {};
-    TABELA_MILLENIUM = dados.tabelaMillenium || {};
-    LOGO_URL = dados.logoUrl || "";
-
-    // Atualizar Logo da Empresa na UI se disponível
-    if (LOGO_URL) {
-      const logoEl = document.getElementById("img-logo");
-      if (logoEl) logoEl.src = LOGO_URL;
-    }
-
-    popularDropdownEstados();
-    popularDropdownClientes();
-    renderizarProdutos();
-    atualizarCarrinhoUI();
-
-    mostrarLoading(false);
-  } catch (erro) {
-    console.error(erro);
-    mostrarLoading(false);
-    alert("Erro ao carregar os dados. Verifique a sua ligação ou a URL do Web App.");
-  }
-}
-
-// ==========================================
-// 3. REGRAS DE NEGÓCIO: CÁLCULO DE PREÇOS
-// ==========================================
-
-/**
- * Calcula o subtotal dos produtos no carrinho usando os preços padrões/promocionais.
- * Esta estimativa serve para verificar se o pedido qualifica para a Tabela Millenium.
- */
-function obterSubtotalEstimadoPadrao() {
-  let subtotal = 0;
-  CARRINHO.forEach((item) => {
-    const precoPadrao = obterPrecoItemIndividual(item.produto, TABELA_PRECO_SELECIONADA, ESTADO_SELECIONADO, PRAZO_SELECIONADO, 0, true);
-    subtotal += precoPadrao * item.qtd;
-  });
-  return subtotal;
-}
-
-/**
- * Retorna o preço correto de um produto com base nas tabelas especiais e regras.
- */
-function obterPrecoItemIndividual(produto, tabela, estado, prazo, subtotalEstimado = 0, ignorarMillenium = false) {
-  const codNorm = normalizarReferencia(produto.codigo);
-
-  // 1. Regra Especial: TABELA KNE825
-  if (tabela === "KNE825" && TABELA_KNE825) {
-    if (TABELA_KNE825[codNorm] !== undefined) {
-      return TABELA_KNE825[codNorm];
-    }
-  }
-
-  // 2. Regra Especial: TABELA MILLENIUM
-  if (tabela === "MILLENIUM" && TABELA_MILLENIUM && !ignorarMillenium) {
-    let chavePrazo = "";
-    if (prazo.includes("42")) chavePrazo = "42";
-    else if (prazo.includes("63")) chavePrazo = "63";
-
-    if (chavePrazo) {
-      // Regra de ICMS por Estado Destino (Partindo de RS):
-      // RS, SC, PR, SP, RJ, MG possuem ICMS 12% (Mínimo de R$ 3.000)
-      // Demais estados possuem ICMS 7% (Mínimo de R$ 5.000)
-      const estadosICMS12 = ["RS", "SC", "PR", "SP", "RJ", "MG"];
-      const ehICMS12 = estadosICMS12.includes(String(estado).toUpperCase());
-      const limiteMinimo = ehICMS12 ? 3000 : 5000;
-
-      if (subtotalEstimado >= limiteMinimo) {
-        if (TABELA_MILLENIUM[codNorm] && TABELA_MILLENIUM[codNorm][chavePrazo] !== undefined) {
-          return TABELA_MILLENIUM[codNorm][chavePrazo];
-        }
-      }
-    }
-  }
-
-  // 3. Promoção Ativa (Padrão)
-  const tabelaPrecoPadrao = tabela === "MILLENIUM" || tabela === "KNE825" ? "A" : tabela;
-  if (produto.emPromocao && produto.precosPromo && produto.precosPromo[tabelaPrecoPadrao] > 0) {
-    return produto.precosPromo[tabelaPrecoPadrao];
-  }
-
-  // 4. Tabela de Preços Padrão
-  if (produto.precos && produto.precos[tabelaPrecoPadrao] !== undefined) {
-    return produto.precos[tabelaPrecoPadrao];
-  }
-
-  return 0;
-}
-
-// ==========================================
-// 4. RENDERS DE PRODUTOS E INTERFACE
-// ==========================================
-
-function popularDropdownEstados() {
-  const select = document.getElementById("select-estado");
-  if (!select) return;
-  select.innerHTML = `<option value="">Selecione a UF Destino</option>`;
-  ESTADOS.forEach((uf) => {
-    const opt = document.createElement("option");
-    opt.value = uf;
-    opt.textContent = uf;
-    if (uf === ESTADO_SELECIONADO) opt.selected = true;
-    select.appendChild(opt);
-  });
-}
-
-function renderizarProdutos() {
-  const grid = document.getElementById("grid-produtos");
-  if (!grid) return;
-  grid.innerHTML = "";
-
-  const subtotalEstimado = obterSubtotalEstimadoPadrao();
-
-  // Filtrar produtos com base na busca e promoção
-  const produtosFiltrados = PRODUTOS.filter((p) => {
-    const atendeBusca = p.codigo.toLowerCase().includes(FILTRO_BUSCA) || p.descricao.toLowerCase().includes(FILTRO_BUSCA);
-    const atendePromo = FILTRO_PROMO ? p.emPromocao : true;
-    return atendeBusca && atendePromo;
-  });
-
-  if (produtosFiltrados.length === 0) {
-    grid.innerHTML = `<p class="aviso-vazio">Nenhum produto encontrado para os filtros ativos.</p>`;
-    return;
-  }
-
-  produtosFiltrados.forEach((p) => {
-    const precoUnitario = obterPrecoItemIndividual(p, TABELA_PRECO_SELECIONADA, ESTADO_SELECIONADO, PRAZO_SELECIONADO, subtotalEstimado);
-    const itemNoCarrinho = CARRINHO.find((item) => item.produto.codigo === p.codigo);
-    const qtdAtual = itemNoCarrinho ? itemNoCarrinho.qtd : 0;
-
-    const divCard = document.createElement("div");
-    divCard.className = `card-produto ${p.emPromocao ? "promocao" : ""}`;
-
-    // Construção do link da imagem do Drive
-    const imgUrl = p.fileId 
-      ? `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w300` 
-      : "https://via.placeholder.com/150?text=Sem+Foto";
-
-    divCard.innerHTML = `
-      ${p.emPromocao ? '<span class="badge-promo">PROMOÇÃO</span>' : ""}
-      <div class="img-wrapper">
-        <img src="${imgUrl}" alt="${p.descricao}" loading="lazy" onclick="abrirImagemAmpliada('${p.fileId}')">
-      </div>
-      <div class="produto-detalhes">
-        <span class="produto-ref">${p.codigo}</span>
-        <h3 class="produto-titulo">${p.descricao}</h3>
-        <p class="produto-info">Caixa master: ${p.qtdEmbalagem} un. | IPI: ${p.ipi.toFixed(1)}%</p>
-        <div class="preco-wrapper">
-          <span class="preco-valor">${fmtBRL(precoUnitario)}</span>
-        </div>
-        <div class="controles-carrinho">
-          <button class="btn-controle" onclick="alterarQtd('${p.codigo}', -${p.qtdEmbalagem})">-</button>
-          <input type="number" class="input-qtd" id="qtd-${p.codigo}" value="${qtdAtual}" onchange="ajustarQtdDigitada('${p.codigo}', this.value, ${p.qtdEmbalagem})">
-          <button class="btn-controle" onclick="alterarQtd('${p.codigo}', ${p.qtdEmbalagem})">+</button>
-        </div>
-      </div>
-    `;
-    grid.appendChild(divCard);
-  });
-}
-
-// ==========================================
-// 5. GESTÃO DO CARRINHO DE COMPRAS
-// ==========================================
-
-function alterarQtd(codigo, variação) {
-  const p = PRODUTOS.find((prod) => prod.codigo === codigo);
-  if (!p) return;
-
-  const itemExistente = CARRINHO.find((item) => item.produto.codigo === codigo);
-  let novaQtd = (itemExistente ? itemExistente.qtd : 0) + variação;
-
-  if (novaQtd < 0) novaQtd = 0;
-
-  // Garante múltiplos da embalagem
-  if (novaQtd > 0 && novaQtd % p.qtdEmbalagem !== 0) {
-    novaQtd = Math.ceil(novaQtd / p.qtdEmbalagem) * p.qtdEmbalagem;
-  }
-
-  atualizarQtdNoCarrinhoArray(p, novaQtd);
-}
-
-function ajustarQtdDigitada(codigo, valor, qtdEmbalagem) {
-  const p = PRODUTOS.find((prod) => prod.codigo === codigo);
-  if (!p) return;
-
-  let qtd = parseInt(valor) || 0;
-  if (qtd < 0) qtd = 0;
-
-  // Ajusta para o múltiplo mais próximo da caixa master
-  if (qtd > 0 && qtd % qtdEmbalagem !== 0) {
-    qtd = Math.ceil(qtd / qtdEmbalagem) * qtdEmbalagem;
-    alert(`Quantidade ajustada para ${qtd} unidades para corresponder à caixa master de ${qtdEmbalagem} un.`);
-  }
-
-  atualizarQtdNoCarrinhoArray(p, qtd);
-}
-
-function atualizarQtdNoCarrinhoArray(produto, qtd) {
-  const index = CARRINHO.findIndex((item) => item.produto.codigo === produto.codigo);
-
-  if (qtd === 0) {
-    if (index !== -1) CARRINHO.splice(index, 1);
-  } else {
-    if (index !== -1) {
-      CARRINHO[index].qtd = qtd;
-    } else {
-      CARRINHO.push({ produto, qtd });
-    }
-  }
-
-  atualizarCarrinhoUI();
-  
-  // Atualiza as quantidades exibidas nos inputs do Grid sem re-renderizar todo o HTML
-  const inputEl = document.getElementById(`qtd-${produto.codigo}`);
-  if (inputEl) inputEl.value = qtd;
-}
-
-function atualizarPrecosCarrinhoEProdutos() {
-  atualizarCarrinhoUI();
-  renderizarProdutos();
-}
-
-/**
- * Reconstrói e calcula os totais finais do carrinho com todas as regras aplicadas
- */
-function calcularTotaisCarrinho() {
-  let subtotalProdutos = 0;
-  let totalIpi = 0;
-  let totalCaixas = 0;
-
-  const subtotalEstimado = obterSubtotalEstimadoPadrao();
-
-  // Verifica se a tabela Millenium está ativa e se as condições de desbloqueio foram atendidas
-  let milleniumDesbloqueada = false;
-  let limiteRequerido = 0;
-  let diferencaParaLiberar = 0;
-
-  if (TABELA_PRECO_SELECIONADA === "MILLENIUM") {
-    let chavePrazo = "";
-    if (PRAZO_SELECIONADO.includes("42")) chavePrazo = "42";
-    else if (PRAZO_SELECIONADO.includes("63")) chavePrazo = "63";
-
-    const estadosICMS12 = ["RS", "SC", "PR", "SP", "RJ", "MG"];
-    const ehICMS12 = estadosICMS12.includes(String(ESTADO_SELECIONADO).toUpperCase());
-    limiteRequerido = ehICMS12 ? 3000 : 5000;
-
-    if (chavePrazo && subtotalEstimado >= limiteRequerido) {
-      milleniumDesbloqueada = true;
-    } else {
-      diferencaParaLiberar = limiteRequerido - subtotalEstimado;
-    }
-  }
-
-  // Prepara os itens finais com os cálculos
-  const itensFinais = CARRINHO.map((item) => {
-    const p = item.produto;
-    const precoFinalItem = obterPrecoItemIndividual(p, TABELA_PRECO_SELECIONADA, ESTADO_SELECIONADO, PRAZO_SELECIONADO, subtotalEstimado);
-
-    const valorTotalItemSemIPI = precoFinalItem * item.qtd;
-    const ipiDec = p.ipi / 100;
-    const ipiCadaItem = precoFinalItem * ipiDec;
-    const totalIpiItem = ipiCadaItem * item.qtd;
-
-    subtotalProdutos += valorTotalItemSemIPI;
-    totalIpi += totalIpiItem;
-    totalCaixas += item.qtd / p.qtdEmbalagem;
-
-    return {
-      codigo: p.codigo,
-      descricao: p.descricao,
-      qtd: item.qtd,
-      valorComDesconto: precoFinalItem, // Preço líquido unitário
-      valorIpiCada: ipiCadaItem,
-      ipi: p.ipi,
-      valorComIpi: precoFinalItem + ipiCadaItem,
-      valorTotalItem: (valorTotalItemSemIPI + totalIpiItem).toFixed(2),
-      fileId: p.fileId,
-    };
-  });
-
-  // Cálculo do Frete
-  let valorFrete = 0;
-  let freteStatusMsg = "Sem regra de frete configurada.";
-  const regraFrete = FRETE_REGRAS[ESTADO_SELECIONADO];
-
-  if (regraFrete) {
-    const gratisApartir = regraFrete.gratis;
-    const minimoPedidoFrete = regraFrete.pedidoMinimo;
-    const freteFixo = regraFrete.intervalo; // 'intervalo' é a taxa padrão/fixa configurada
-
-    if (gratisApartir > 0 && subtotalProdutos >= gratisApartir) {
-      valorFrete = 0;
-      freteStatusMsg = "Frete Grátis Atendido!";
-    } else {
-      valorFrete = freteFixo;
-      freteStatusMsg = `Frete Pago: ${fmtBRL(valorFrete)}`;
-    }
-
-    if (minimoPedidoFrete > 0 && subtotalProdutos < minimoPedidoFrete) {
-      freteStatusMsg += ` | ATENÇÃO: Pedido abaixo do mínimo de ${fmtBRL(minimoPedidoFrete)} para esta UF.`;
-    }
-  }
-
-  const totalLiquidoFinal = subtotalProdutos + totalIpi + valorFrete;
-
-  return {
-    itens: itensFinais,
-    totalCaixas: Math.ceil(totalCaixas),
-    subtotalProdutos,
-    totalIpi,
-    valorFrete,
-    freteStatusMsg,
-    total: totalLiquidoFinal,
-    milleniumMeta: {
-      desbloqueada: milleniumDesbloqueada,
-      limiteRequerido,
-      diferencaParaLiberar,
-    },
-  };
-}
-
-function atualizarCarrinhoUI() {
-  const container = document.getElementById("itens-carrinho");
-  if (!container) return;
-
-  container.innerHTML = "";
-  const contas = calcularTotaisCarrinho();
-
-  if (CARRINHO.length === 0) {
-    container.innerHTML = `<p class="carrinho-vazio">O seu carrinho está vazio.</p>`;
-    atualizarTotaisUI(contas);
-    return;
-  }
-
-  contas.itens.forEach((it) => {
-    const li = document.createElement("li");
-    li.className = "item-carrinho-row";
-    li.innerHTML = `
-      <div class="carrinho-item-info">
-        <span class="carrinho-item-ref">${it.codigo}</span>
-        <span class="carrinho-item-desc">${it.descricao}</span>
-        <span class="carrinho-item-detalhe">${it.qtd} un. x ${fmtBRL(it.valorComDesconto)} (+${it.ipi}% IPI)</span>
-      </div>
-      <div class="carrinho-item-preco">
-        <strong>${fmtBRL(parseFloat(it.valorTotalItem))}</strong>
-        <button class="btn-remover-item" onclick="alterarQtd('${it.codigo}', -${it.qtd})">Remover</button>
-      </div>
-    `;
-    container.appendChild(li);
-  });
-
-  atualizarTotaisUI(contas);
-}
-
-function atualizarTotaisUI(contas) {
-  setTxtVal("tot-subtotal", fmtBRL(contas.subtotalProdutos));
-  setTxtVal("tot-ipi", fmtBRL(contas.totalIpi));
-  setTxtVal("tot-frete", fmtBRL(contas.valorFrete));
-  setTxtVal("tot-caixas", contas.totalCaixas);
-  setTxtVal("tot-final", fmtBRL(contas.total));
-
-  const statusFreteEl = document.getElementById("status-frete");
-  if (statusFreteEl) statusFreteEl.textContent = contas.freteStatusMsg;
-
-  // Informações de Alerta da Tabela Especial MILLENIUM
-  const areaAlerta = document.getElementById("alerta-millenium");
-  if (areaAlerta) {
-    if (TABELA_PRECO_SELECIONADA === "MILLENIUM") {
-      const meta = contas.milleniumMeta;
-      if (meta.desbloqueada) {
-        areaAlerta.className = "alerta-box sucesso";
-        areaAlerta.innerHTML = `<strong>Tabela Millenium Ativada!</strong> Regras atendidas com sucesso para o estado ${ESTADO_SELECIONADO}.`;
-      } else {
-        areaAlerta.className = "alerta-box aviso";
-        let msgAux = "";
-        const chavePrazo = PRAZO_SELECIONADO.includes("42") || PRAZO_SELECIONADO.includes("63");
-        if (!chavePrazo) {
-          msgAux = "Selecione o Prazo Antecipado 42 ou 63 dias nas opções.";
-        } else {
-          msgAux = `Faltam apenas <strong>${fmtBRL(meta.diferencaParaLiberar)}</strong> em produtos para ativar os preços especiais (Limite Mínimo: ${fmtBRL(meta.limiteRequerido)}).`;
-        }
-        areaAlerta.innerHTML = `<strong>Preços Millenium Bloqueados:</strong> ${msgAux}`;
-      }
-      areaAlerta.style.display = "block";
-    } else {
-      areaAlerta.style.display = "none";
-    }
-  }
-}
-
-// ==========================================
-// 6. GESTÃO DOS CLIENTES
-// ==========================================
-
-function popularDropdownClientes() {
-  const select = document.getElementById("select-cliente");
-  if (!select) return;
-
-  select.innerHTML = `<option value="">Selecione um Cliente Cadastrado</option>`;
-  CLIENTES.forEach((c, index) => {
-    const opt = document.createElement("option");
-    opt.value = index;
-    opt.textContent = `${c.cnpj.replace(/^(\d{2})(\d{3})/, "$1.$2...")} - ${c.razao} (${c.estado})`;
-    select.appendChild(opt);
-  });
-
-  select.addEventListener("change", (e) => {
-    const idx = e.target.value;
-    if (idx !== "") {
-      CLIENTE_SELECIONADO = CLIENTES[idx];
-      // Forçar o estado de destino correspondente ao cadastro do cliente
-      if (CLIENTE_SELECIONADO.estado) {
-        ESTADO_SELECIONADO = CLIENTE_SELECIONADO.estado.toUpperCase();
-        const selEstadoEl = document.getElementById("select-estado");
-        if (selEstadoEl) selEstadoEl.value = ESTADO_SELECIONADO;
-      }
-    } else {
-      CLIENTE_SELECIONADO = null;
-    }
-    atualizarPrecosCarrinhoEProdutos();
-  });
-}
-
-// Autocomplete dinâmico de morada usando a API ViaCEP
-async function buscarCep(cepVal) {
-  const cep = String(cepVal).replace(/\D/g, "");
-  if (cep.length !== 8) return;
-
-  try {
-    const response = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
-    if (!response.ok) return;
-    const c = await response.json();
-    if (c.erro) return;
-
-    setInpVal("nc-endereco", c.logradouro || "");
-    setInpVal("nc-bairro", c.bairro || "");
-    setInpVal("nc-municipio", c.localidade || "");
-    setInpVal("nc-estado", c.uf || "");
+    const r = await fetch(URL_GOOGLE_SCRIPT + (force ? '?atualizar=true' : ''));
+    const d = await r.json();
+    PRODUTOS = d.produtos || [];
+    FRETE_REGRAS = d.freteRegras || {};
+    CLIENTES = d.clientes || [];
+    TABELA_KNE825 = d.tabelaKNE825 || {};
+    TABELA_MILLENIUM = d.tabelaMillenium || {};
+
+    let ufs = d.estados || Object.keys(FRETE_REGRAS);
+    let ufd = document.getElementById('uf-d'), ufm = document.getElementById('uf-m');
+    ufd.innerHTML = '<option value="">Selecione o Estado...</option>';
+    ufm.innerHTML = '<option value="">Selecione o Estado...</option>';
+    ufs.forEach(e => {
+      ufd.innerHTML += `<option value="${e}">${e}</option>`;
+      ufm.innerHTML += `<option value="${e}">${e}</option>`;
+    });
+    filtrar();
   } catch (e) {
-    console.error("Erro na busca do CEP:", e);
+    showToast('Erro de conexão.');
   }
 }
 
-async function salvarNovoCliente(e) {
-  e.preventDefault();
-  if (BLOQUEIA_SALVAMENTO_CNPJ) return;
+function sincronizarPlanilha() {
+  document.getElementById('btn-sync').innerText = "Sincronizando...";
+  document.getElementById('grid').innerHTML = "";
+  carregarDados(true).then(() => {
+    document.getElementById('btn-sync').innerText = "🔄 Sincronizar Catálogo";
+    showToast("Catálogo atualizado!");
+  });
+}
 
-  const cnpj = document.getElementById("nc-cnpj").value.trim();
-  const razao = document.getElementById("nc-razao").value.trim();
-  const fantasia = document.getElementById("nc-fantasia").value.trim();
-  const telefone = document.getElementById("nc-telefone").value.trim();
-  const endereco = document.getElementById("nc-endereco").value.trim();
-  const estado = document.getElementById("nc-estado").value.trim().toUpperCase();
-  const bairro = document.getElementById("nc-bairro").value.trim();
-  const municipio = document.getElementById("nc-municipio").value.trim();
-  const numero = document.getElementById("nc-numero").value.trim();
-  const cep = document.getElementById("nc-cep").value.trim();
+// =============================================
+// BUSCA INTELIGENTE (multi-palavra, sem acento, em qualquer ordem)
+// =============================================
+function normalizarTexto(txt) {
+  return (txt || '')
+    .toString()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .toLowerCase()
+    .trim();
+}
 
-  if (!cnpj || !razao || !estado) {
-    alert("Por favor, preencha obrigatoriamente o CNPJ, Razão Social e Estado (UF).");
+// Distância de Levenshtein (nº mínimo de edições para transformar 'a' em 'b')
+// Usada para tolerar erros de digitação/grafia na base (ex: MILLENIUM x MILLENIUN)
+function distanciaLevenshtein(a, b) {
+  let m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let linhaAnterior = new Array(n + 1);
+  let linhaAtual = new Array(n + 1);
+  for (let j = 0; j <= n; j++) linhaAnterior[j] = j;
+  for (let i = 1; i <= m; i++) {
+    linhaAtual[0] = i;
+    for (let j = 1; j <= n; j++) {
+      let custo = a[i - 1] === b[j - 1] ? 0 : 1;
+      linhaAtual[j] = Math.min(
+        linhaAnterior[j] + 1,      // remoção
+        linhaAtual[j - 1] + 1,     // inserção
+        linhaAnterior[j - 1] + custo // substituição
+      );
+    }
+    [linhaAnterior, linhaAtual] = [linhaAtual, linhaAnterior];
+  }
+  return linhaAnterior[n];
+}
+
+// Tolerância de erro permitida conforme o tamanho da palavra digitada
+function toleranciaPara(tamanho) {
+  if (tamanho <= 3) return 0;  // palavras muito curtas: precisa ser exata
+  if (tamanho <= 5) return 1;
+  if (tamanho <= 9) return 2;
+  return 3;
+}
+
+// Retorna true se TODAS as palavras digitadas aparecerem (em qualquer ordem)
+// em algum dos campos informados — mesmo com pequenos erros de digitação/grafia
+// na base (ex: "millenium" encontra "MILLENIUN"). Ex: "millenium faca" casa com
+// "FACA CHURRASCO MILLENIUM INOX" mesmo não estando na mesma ordem/adjacência.
+function buscaInteligente(campos, termo) {
+  let termoNorm = normalizarTexto(termo);
+  if (!termoNorm) return true;
+  let tokens = termoNorm.split(/\s+/).filter(Boolean);
+  let textoCompleto = normalizarTexto(campos.filter(Boolean).join(' '));
+
+  return tokens.every(tok => {
+    // Caminho rápido: substring exata (cobre código, EAN e a maioria das buscas)
+    if (textoCompleto.includes(tok)) return true;
+
+    // Caminho tolerante a erro: compara com cada palavra do texto
+    let tolerancia = toleranciaPara(tok.length);
+    if (tolerancia === 0) return false;
+    let palavras = textoCompleto.split(/\s+/);
+    return palavras.some(p => {
+      if (Math.abs(p.length - tok.length) > tolerancia) return false; // descarta rápido
+      if (p[0] !== tok[0]) return false; // 1ª letra costuma estar certa; acelera muito
+      return distanciaLevenshtein(tok, p) <= tolerancia;
+    });
+  });
+}
+
+// =============================================
+// CATÁLOGO — FILTROS E RENDERIZAÇÃO
+// =============================================
+let _filtrarTimeout = null;
+function filtrar() {
+  clearTimeout(_filtrarTimeout);
+  _filtrarTimeout = setTimeout(executarFiltro, 150);
+}
+
+function executarFiltro() {
+  let b = document.getElementById('busca').value;
+  let promo = document.getElementById('fil-promo').value;
+  let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
+
+  // Calcula a tabela ativa da mesma forma que o modal e renderizar()
+  let uf = document.getElementById('uf-d').value;
+  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazo2 = (100 - prazoBase2) / 100;
+  let tabelaBase2 = icmsBase === "7" ? "M26071" : "M26121";
+  let limiteTabela2 = icmsBase === "7" ? 5000 : 2500;
+  let liquidoPrevia2 = calcularTotalLiquidoComTabela(tabelaBase2, pctPrazo2, uf);
+  let tabelaFiltro = (liquidoPrevia2 <= limiteTabela2)
+    ? tabelaBase2
+    : (icmsBase === "7" ? "M26072" : "M26122");
+
+  let f = PRODUTOS.filter(p => {
+    let preco = p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro];
+    if (!preco) return false;
+    let mat = buscaInteligente([p.codigo, p.descricao, p.codigoEan], b);
+    if (promo === 'sim' && !p.emPromocao) mat = false;
+    if (pMax > 0 && preco > pMax) mat = false;
+    return mat;
+  });
+  renderizar(f);
+}
+
+function limFiltros() {
+  document.getElementById('busca').value = '';
+  document.getElementById('fil-promo').value = '';
+  document.getElementById('fil-preco').value = '';
+  filtrar();
+}
+
+function somarBrutoPrevia() {
+  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
+  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
+  let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
+  let bruto = 0;
+  Object.values(SELECIONADOS).forEach(item => {
+    let p = item.produto;
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaBase] || 0) : (p.precos[tabelaBase] || 0);
+    bruto += (precoUnit * item.qtd);
+  });
+  return bruto;
+}
+
+function renderizar(arr) {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  document.getElementById('cont').innerText = `${arr.length} produtos`;
+
+  let uf = document.getElementById('uf-d').value;
+  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let prazoBaseR = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazoR = (100 - prazoBaseR) / 100;
+  let tabelaBaseR = icmsBase === "7" ? "M26071" : "M26121";
+  let limiteTabelaR = icmsBase === "7" ? 5000 : 2500;
+  let liquidoPreviaR = calcularTotalLiquidoComTabela(tabelaBaseR, pctPrazoR, uf);
+  let tabelaCard = (liquidoPreviaR <= limiteTabelaR)
+    ? tabelaBaseR
+    : (icmsBase === "7" ? "M26072" : "M26122");
+
+  arr.forEach(p => {
+    let pFinal = getPrecoFinal(p, tabelaCard);
+    if (!pFinal) return;
+
+    let keyCod = p.codigo.toLowerCase().trim();
+    let qty = SELECIONADOS[keyCod] ? SELECIONADOS[keyCod].qtd : 0;
+
+    let c = document.createElement('div');
+    c.className = `card ${qty > 0 ? 'sel' : ''} ${p.emPromocao ? 'promo' : ''}`;
+    c.onclick = () => abrirModal(p);
+
+    let html = `<div class="card-img">`;
+    if (qty > 0) html += `<div class="card-badge-qty">${qty}</div>`;
+    if (p.emPromocao) html += `<div class="card-badge-promo">PROMO</div>`;
+    if (p.fileId) html += `<img src="https://drive.google.com/thumbnail?id=${p.fileId}&sz=w300" onload="this.classList.add('loaded')">`;
+    else html += `<div class="no-img-icon">📷</div>`;
+    html += `</div><div class="card-body"><div class="card-cod">${p.codigo}</div><div class="card-desc">${p.descricao}</div><div class="card-bottom"><div class="card-preco">${formatDin(pFinal)}</div><div class="card-emb">cx ${p.qtdEmbalagem}</div></div></div>`;
+    c.innerHTML = html;
+    g.appendChild(c);
+  });
+}
+
+// =============================================
+// MODAL DE PRODUTO
+// =============================================
+function abrirModal(p) {
+  PRODUTO_MODAL_ATIVO = p;
+  let uf = document.getElementById('uf-d').value;
+  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let brutoPrevia = somarBrutoPrevia();
+  let tAtiva = "M26071";
+
+  if (icmsBase === "7") { tAtiva = brutoPrevia <= 5000 ? "M26071" : "M26072"; }
+  else { tAtiva = brutoPrevia <= 2500 ? "M26121" : "M26122"; }
+
+  document.getElementById('modal-img').src = p.fileId ? `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w600` : '';
+  document.getElementById('modal-img').style.display = 'none';
+  document.getElementById('modal-spin').style.display = 'block';
+  document.getElementById('modal-cod').innerText = p.codigo;
+  document.getElementById('modal-desc').innerText = p.descricao;
+  document.getElementById('modal-preco').innerText = formatDin(getPrecoFinal(p, tAtiva));
+  document.getElementById('modal-emb').innerText = `Múltiplo: ${p.qtdEmbalagem} | NCM: ${p.ncm} | IPI: ${p.ipi}%`;
+
+  let key = p.codigo.toLowerCase().trim();
+  let q = SELECIONADOS[key] ? SELECIONADOS[key].qtd : p.qtdEmbalagem;
+  document.getElementById('modal-qty').value = q;
+  document.getElementById('btn-add-modal').innerText = SELECIONADOS[key] ? "Atualizar Quantidade" : "Adicionar ao Pedido";
+  document.getElementById('modal').classList.add('open');
+}
+
+function fecharModal() { document.getElementById('modal').classList.remove('open'); PRODUTO_MODAL_ATIVO = null; }
+function clicouFora(e) { if (e.target === document.getElementById('modal')) fecharModal(); }
+
+function corrigirQtyModal(input) {
+  if (!PRODUTO_MODAL_ATIVO) return;
+  let v = parseInt(input.value) || 0;
+  let m = PRODUTO_MODAL_ATIVO.qtdEmbalagem || 1;
+  if (v < m) { input.value = m; }
+  else if (v % m !== 0) {
+    let old = v;
+    input.value = Math.ceil(v / m) * m;
+    showToast(`Corrigido de ${old} para ${input.value} (múltiplo de ${m})`);
+  }
+}
+
+function mudarQtyModal(d) {
+  if (!PRODUTO_MODAL_ATIVO) return;
+  let i = document.getElementById('modal-qty');
+  let v = parseInt(i.value) || 0;
+  let m = PRODUTO_MODAL_ATIVO.qtdEmbalagem;
+  v += (d * m);
+  if (v < m) v = m;
+  i.value = v;
+}
+
+function confirmarAddModal() {
+  if (!PRODUTO_MODAL_ATIVO) return;
+  let i = document.getElementById('modal-qty');
+  corrigirQtyModal(i);
+  let v = parseInt(i.value);
+  let key = PRODUTO_MODAL_ATIVO.codigo.toLowerCase().trim();
+  SELECIONADOS[key] = { produto: PRODUTO_MODAL_ATIVO, qtd: v };
+  fecharModal();
+  calcularTudo();
+  showToast("Item adicionado.");
+}
+
+// =============================================
+// CARRINHO E CÁLCULOS
+// =============================================
+function limSel() { 
+  SELECIONADOS = {}; 
+  calcularTudo(); 
+  // Limpa também os dados cadastrais do cliente conforme solicitado
+  ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
+    let input = document.getElementById('cli-' + f);
+    if (input) input.value = '';
+  });
+}
+
+// =============================================
+// CARRINHO — RENDERIZAÇÃO INDEPENDENTE
+// =============================================
+function renderizarCarrinho(tabelaAtiva) {
+  // Recalcula tabelaAtiva se não fornecida
+  if (!tabelaAtiva) {
+    let uf = document.getElementById('uf-d').value;
+    let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+    let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+    let pctPrazo = (100 - prazoBase) / 100;
+    let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
+    let limiteTabela = icmsBase === "7" ? 5000 : 2500;
+    let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
+    tabelaAtiva = (liquidoPrevia <= limiteTabela) ? tabelaBase : (icmsBase === "7" ? "M26072" : "M26122");
+  }
+
+  let hd = document.getElementById('lista-d');
+  if (!hd) return;
+
+  let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazo = (100 - prazoBase) / 100;
+
+  // Guarda a posição de scroll antes de limpar
+  let scrollTop = hd.scrollTop;
+  hd.innerHTML = '';
+
+  let chaves = Object.keys(SELECIONADOS);
+  if (chaves.length === 0) {
+    hd.innerHTML = '<div class="vazio" style="padding:36px 20px;font-size:13px;text-align:center;">🛒<br><br>Carrinho vazio</div>';
+    let rh = document.getElementById('cart-header-resumo');
+    if (rh) rh.innerText = 'Nenhum item';
     return;
   }
 
-  BLOQUEIA_SALVAMENTO_CNPJ = true;
-  const btn = document.getElementById("btn-salvar-nc");
-  if (btn) btn.disabled = true;
+  let totalCx = 0;
+  chaves.forEach(cod => {
+    let item = SELECIONADOS[cod];
+    let p = item.produto, qty = item.qtd;
+    let precoUnit = getPrecoFinal(p, tabelaAtiva);
+    let totalItem = precoUnit * qty;
+    totalCx += qty;
 
-  const novoCliente = { cnpj, razao, fantasia, telefone, endereco, estado, bairro, municipio, numero, cep };
+    let div = document.createElement('div');
+    div.className = 'cart-item';
 
-  mostrarLoading(true, "A registar novo cliente no sistema...");
-  try {
-    const response = await fetch(API_URL, {
-      method: "POST",
-      body: JSON.stringify({
-        acao: "salvar_cliente",
-        cliente: novoCliente,
-      }),
+    // Miniatura
+    let imgEl = document.createElement('div');
+    imgEl.className = 'cart-item-img';
+    if (p.fileId) {
+      let img = document.createElement('img');
+      img.src = `https://drive.google.com/thumbnail?id=${p.fileId}&sz=w80`;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;opacity:0;transition:opacity .3s';
+      img.onload = () => { img.style.opacity = 1; };
+      imgEl.appendChild(img);
+    } else {
+      imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
+    }
+
+    // Info
+    let infoEl = document.createElement('div');
+    infoEl.className = 'cart-item-info';
+    infoEl.innerHTML = `
+      <div class="cart-item-cod">${p.codigo}</div>
+      <div class="cart-item-desc" title="${p.descricao}">${p.descricao}</div>
+      <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
+    `;
+
+    // Controle de quantidade — usando addEventListener, não onclick inline
+    let ctrlEl = document.createElement('div');
+    ctrlEl.className = 'cart-qty-ctrl';
+    ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
+
+    let btnMenos = document.createElement('button');
+    btnMenos.className = 'cart-qty-btn';
+    btnMenos.textContent = '−';
+    btnMenos.title = 'Diminuir';
+
+    let inputQty = document.createElement('input');
+    inputQty.className = 'cart-qty-input';
+    inputQty.type = 'number';
+    inputQty.value = qty;
+    inputQty.min = p.qtdEmbalagem || 1;
+
+    let btnMais = document.createElement('button');
+    btnMais.className = 'cart-qty-btn';
+    btnMais.textContent = '+';
+    btnMais.title = 'Aumentar';
+
+    let multiplo = p.qtdEmbalagem || 1;
+
+    btnMenos.addEventListener('click', () => {
+      let novaQty = (SELECIONADOS[cod] ? SELECIONADOS[cod].qtd : qty) - multiplo;
+      if (novaQty < multiplo) {
+        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+          delete SELECIONADOS[cod];
+          calcularTudo();
+        }
+      } else {
+        SELECIONADOS[cod].qtd = novaQty;
+        calcularTudo();
+      }
     });
 
-    const resultado = await response.json();
+    btnMais.addEventListener('click', () => {
+      if (SELECIONADOS[cod]) SELECIONADOS[cod].qtd += multiplo;
+      calcularTudo();
+    });
 
-    if (resultado.status === "success") {
-      alert(resultado.message);
-      fecharModalNovoCliente();
-      // Recarrega todos os dados do Spreadsheet para trazer a nova lista de clientes atualizada
-      await carregarDadosIniciais(true);
-    } else {
-      alert(resultado.message || "Erro desconhecido ao salvar o cliente.");
-      BLOQUEIA_SALVAMENTO_CNPJ = false;
-      if (btn) btn.disabled = false;
+    inputQty.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') inputQty.blur();
+    });
+
+    inputQty.addEventListener('blur', () => {
+      if (!SELECIONADOS[cod]) return;
+      let v = parseInt(inputQty.value) || 0;
+      if (v <= 0) {
+        if (confirm(`Remover "${p.descricao}" do carrinho?`)) {
+          delete SELECIONADOS[cod];
+          calcularTudo();
+        } else {
+          inputQty.value = SELECIONADOS[cod].qtd;
+        }
+        return;
+      }
+      if (v % multiplo !== 0) {
+        v = Math.ceil(v / multiplo) * multiplo;
+        showToast(`Corrigido para ${v} (múltiplo de ${multiplo})`);
+      }
+      SELECIONADOS[cod].qtd = v;
+      calcularTudo();
+    });
+
+    ctrlEl.appendChild(btnMenos);
+    ctrlEl.appendChild(inputQty);
+    ctrlEl.appendChild(btnMais);
+
+    // Botão remover
+    let rmBtn = document.createElement('button');
+    rmBtn.className = 'cart-rm-btn';
+    rmBtn.title = 'Remover';
+    rmBtn.textContent = '✕';
+    rmBtn.addEventListener('click', () => {
+      delete SELECIONADOS[cod];
+      calcularTudo();
+    });
+
+    div.appendChild(imgEl);
+
+    // Wrapper direito: info + controles + botão remover
+    let rightEl = document.createElement('div');
+    rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
+
+    let topRowEl = document.createElement('div');
+    topRowEl.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:6px;';
+    topRowEl.appendChild(infoEl);
+    topRowEl.appendChild(rmBtn);
+
+    rightEl.appendChild(topRowEl);
+    rightEl.appendChild(ctrlEl);
+
+    div.appendChild(rightEl);
+    hd.appendChild(div);
+  });
+
+  // Restaura scroll
+  hd.scrollTop = scrollTop;
+
+  let rh = document.getElementById('cart-header-resumo');
+  if (rh) rh.innerText = `${chaves.length} produto${chaves.length > 1 ? 's' : ''} · ${totalCx} cx`;
+}
+
+function rmItem(cod) { delete SELECIONADOS[cod]; calcularTudo(); }
+
+function alterouUF(id) {
+  let val = document.getElementById(id).value;
+  document.getElementById('uf-d').value = val;
+  document.getElementById('uf-m').value = val;
+  calcularTudo();
+}
+
+function syncRegras(idO, idD) {
+  document.getElementById(idD).value = document.getElementById(idO).value;
+  calcularTudo();
+}
+
+function alterouPrazoBase(idO, idD) {
+  let val = document.getElementById(idO).value;
+  document.getElementById(idD).value = val;
+  let wD = document.getElementById('wrapper-subprazo-d'), wM = document.getElementById('wrapper-subprazo-m');
+  let sD = document.getElementById('subprazo-d'), sM = document.getElementById('subprazo-m');
+  if (SUB_PRAZOS[val]) {
+    wD.style.display = 'block'; wM.style.display = 'block';
+    sD.innerHTML = ''; sM.innerHTML = '';
+    SUB_PRAZOS[val].forEach(p => {
+      sD.innerHTML += `<option value="${p}">${p}</option>`;
+      sM.innerHTML += `<option value="${p}">${p}</option>`;
+    });
+  } else {
+    wD.style.display = 'none'; wM.style.display = 'none';
+    sD.innerHTML = ''; sM.innerHTML = '';
+  }
+  verificarModoEspecial();
+  calcularTudo();
+}
+
+function calcularTotalLiquidoComTabela(tabela, pctPrazo, uf) {
+  let subtotal = 0, totalIpi = 0;
+  Object.values(SELECIONADOS).forEach(item => {
+    let p = item.produto, qty = item.qtd;
+    let precoUnit = p.emPromocao ? (p.precosPromo[tabela] || 0) : (p.precos[tabela] || 0);
+    subtotal += precoUnit * qty;
+    let valorComDesc = precoUnit * pctPrazo;
+    totalIpi += valorComDesc * (p.ipi / 100) * qty;
+  });
+  let valDesc = subtotal - (subtotal * pctPrazo);
+  let liquido = (subtotal - valDesc) + totalIpi;
+  let configFrete = FRETE_REGRAS[uf] || null;
+  if (configFrete && subtotal >= configFrete.pedidoMinimo && subtotal < configFrete.gratis) {
+    liquido += configFrete.intervalo;
+  }
+  return liquido;
+}
+
+function calcularTudo() {
+  let uf = document.getElementById('uf-d').value;
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
+  let pctPrazo = (100 - prazoBase) / 100;
+  let prazoTexto = document.getElementById('prazo-d').options[document.getElementById('prazo-d').selectedIndex].text;
+  if (SUB_PRAZOS[prazoBase]) prazoTexto = document.getElementById('subprazo-d').value || prazoTexto;
+
+  let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
+  let limiteTabela = icmsBase === "7" ? 5000 : 2500;
+  let liquidoPrevia = calcularTotalLiquidoComTabela(tabelaBase, pctPrazo, uf);
+  let tabelaAtiva = (liquidoPrevia <= limiteTabela)
+    ? tabelaBase
+    : (icmsBase === "7" ? "M26072" : "M26122");
+
+  let subtotalBrutoInicial = somarBrutoPrevia();
+  let chaveMilleniumAtiva = verificarRegraMillenium(); // "42", "63" ou null
+
+  let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
+
+  Object.keys(SELECIONADOS).forEach(c => {
+    let item = SELECIONADOS[c];
+    let p = item.produto, qty = item.qtd;
+    let precoUnit = getPrecoFinal(p, tabelaAtiva);
+    let totalItemOriginal = precoUnit * qty;
+    subtotalProdutos += totalItemOriginal;
+    contItens += qty;
+
+    let valorComDescontoPrazo = precoUnit * pctPrazo;
+    let valorIpiCada = valorComDescontoPrazo * (p.ipi / 100);
+    let valorItemComIpi = valorComDescontoPrazo + valorIpiCada;
+    let valorTotalItemDescIpi = valorItemComIpi * qty;
+    totalIpi += (valorIpiCada * qty);
+
+    listaItensPdf.push({
+      fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
+      valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
+      valorComIpi: valorItemComIpi,
+      valorTotalItem: valorTotalItemDescIpi,
+      valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      fotoLarguraAumento: 1.50,
+      quebraTextoDescricao: true,
+      colunaDescricaoLargura: "menor"
+    });
+  });
+
+  // Renderiza o carrinho separadamente
+  renderizarCarrinho(tabelaAtiva);
+
+  document.getElementById('badge').innerText = `${contItens} itens`;
+  document.getElementById('badge').style.display = contItens > 0 ? 'inline-block' : 'none';
+  document.getElementById('cart-count').innerText = Object.keys(SELECIONADOS).length;
+  document.getElementById('cart-count-m').innerText = Object.keys(SELECIONADOS).length;
+
+  let valDescPrazo = 0;
+  if (prazoBase > 0) { valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo); }
+  let subtotalLiquidoParcial = (subtotalProdutos - valDescPrazo) + totalIpi;
+
+  let freteVal = 0, configFrete = FRETE_REGRAS[uf] || null;
+  if (configFrete && subtotalBrutoInicial < configFrete.pedidoMinimo) freteVal = -1;
+  else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
+
+  let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
+  let valorProdutoCalculado = subtotalProdutos - valDescPrazo;
+
+  DADOS_PDF_PRONTO = {
+    tipoAcao: '',
+    logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
+    codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
+    clienteInfo: '', observacoes: '',
+    contas: {
+      subtotal: subtotalProdutos,
+      pctPrazo: prazoBase,
+      valPrazo: valDescPrazo,
+      valorProduto: valorProdutoCalculado,
+      totalIpi,
+      valorFrete: freteVal > 0 ? freteVal : 0,
+      liquido: totalLiquido,
+      valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      totalIpiFormatado: totalIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    },
+    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
+    layoutAjustes: {
+      colunaFotoLarguraAumento: 1.50,
+      colunaDescricaoMenor: true,
+      quebraTextoDescricao: true
     }
-    mostrarLoading(false);
-  } catch (err) {
-    console.error(err);
-    alert("Não foi possível salvar o cliente. Verifique o servidor.");
+  };
+
+  const upd = (prefix) => {
+    document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva + (chaveMilleniumAtiva ? ` (+ MILLENIUM Antecipado${chaveMilleniumAtiva === 'antecipado' ? '' : ' ' + chaveMilleniumAtiva + ' dias'})` : '');
+    // Subtotal exibe o valor já com desconto do prazo aplicado
+    document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
+    document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
+    document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
+    document.getElementById(prefix + '-ipi-val').innerText = '+ ' + formatDin(totalIpi);
+    let fLabel = document.getElementById(prefix + '-frete-val');
+    if (!uf) fLabel.innerText = "Selecione o Estado";
+    else if (freteVal === -1) { fLabel.innerText = `Falta ${formatDin(configFrete.pedidoMinimo - subtotalBrutoInicial)}`; fLabel.style.color = 'red'; }
+    else { fLabel.innerText = freteVal === 0 ? "GRÁTIS" : formatDin(freteVal); fLabel.style.color = ''; }
+    document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
+  };
+  upd('rd'); upd('rm');
+  // Rerenderiza os cards para atualizar preços conforme tabela/estado
+  filtrar();
+
+  let mb = document.getElementById('mb-info');
+  mb.innerHTML = contItens === 0 ? 'Selecione produtos' : `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
+
+  let lib = contItens > 0 && uf !== "" && freteVal !== -1;
+  document.getElementById('btn-orc-d').disabled = !lib;
+  document.getElementById('btn-orc-m').disabled = !lib;
+  document.getElementById('btn-baixar-d').disabled = contItens === 0;
+  document.getElementById('btn-baixar-m').disabled = contItens === 0;
+}
+
+// =============================================
+// CLIENTES — BUSCA E CADASTRO
+// =============================================
+function verificarNovoClienteExistente(cnpj) {
+  if (!cnpj) return;
+  let cLimpo = cnpj.replace(/\D/g, '').trim();
+  let c = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cLimpo);
+  if (c) {
+    alert("⚠️ ALERTA IMPEDITIVO: Este CNPJ já existe cadastrado na planilha! Não é permitido criar duplicados.");
+    ['razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
+      document.getElementById('nc-' + f).value = c[f] || '';
+    });
+    BLOQUEIA_SALVAMENTO_CNPJ = true;
+    document.getElementById('btn-salvar-nc').disabled = true;
+  } else {
     BLOQUEIA_SALVAMENTO_CNPJ = false;
-    if (btn) btn.disabled = false;
-    mostrarLoading(false);
+    document.getElementById('btn-salvar-nc').disabled = false;
   }
 }
 
-// ==========================================
-// 7. FECHAMENTO DO PEDIDO E GERAÇÃO DO PDF
-// ==========================================
+function buscarClienteAoDigitar(cnpj) {
+  if (!cnpj) return;
+  let cLimpo = cnpj.replace(/\D/g, '').trim();
+  let c = CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cLimpo);
+  if (c) {
+    ['razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
+      document.getElementById('cli-' + f).value = c[f] || '';
+    });
+    showToast("✅ Dados do cliente preenchidos automaticamente.");
+    ativarClienteKNE825(cnpj);
+  } else {
+    if (confirm("❌ Cliente não localizado! Deseja abrir a tela de cadastro para este CNPJ agora?")) {
+      fecharModalCliente();
+      setTimeout(() => {
+        abrirModalNovoCliente();
+        document.getElementById('nc-cnpj').value = cnpj;
+      }, 350);
+    }
+  }
+}
 
-async function submeterPedidoFinal(tipoAcao) {
-  if (CARRINHO.length === 0) {
-    alert("O seu carrinho está vazio!");
+function salvarNovoCliente() {
+  let cCnpj = document.getElementById('nc-cnpj').value;
+  if (BLOQUEIA_SALVAMENTO_CNPJ || CLIENTES.find(x => x.cnpj.replace(/\D/g, '') === cCnpj.replace(/\D/g, ''))) {
+    alert("❌ Operação abortada! CNPJ duplicado na base de dados.");
     return;
   }
-  if (!CODIGO_REPRESENTANTE) {
-    alert("Informe o Código do Representante antes de continuar!");
-    return;
-  }
-  if (!CLIENTE_SELECIONADO) {
-    alert("Selecione um cliente para prosseguir.");
-    return;
-  }
-  if (!ESTADO_SELECIONADO) {
-    alert("Selecione o Estado Destino da entrega.");
-    return;
-  }
-  if (!PRAZO_SELECIONADO) {
-    alert("Defina a condição de Prazo de Pagamento.");
-    return;
-  }
-  if (ENVIANDO_PEDIDO) return;
 
-  ENVIANDO_PEDIDO = true;
-  mostrarLoading(true, "A processar pedido. Aguarde...");
-
-  const contas = calcularTotaisCarrinho();
-  const obsText = document.getElementById("obs-text")?.value.trim() || "";
-
-  // Formatação amigável das informações do cliente selecionado
-  const cInfo = `Razão Social: ${CLIENTE_SELECIONADO.razao}
-CNPJ: ${CLIENTE_SELECIONADO.cnpj} | Nome Fantasia: ${CLIENTE_SELECIONADO.fantasia || "-"}
-Tel: ${CLIENTE_SELECIONADO.telefone || "-"}
-Endereço: ${CLIENTE_SELECIONADO.endereco || "-"}, Nº ${CLIENTE_SELECIONADO.numero || "-"}
-Bairro: ${CLIENTE_SELECIONADO.bairro || "-"} | Município: ${CLIENTE_SELECIONADO.municipio || "-"}
-UF: ${CLIENTE_SELECIONADO.estado || "-"} | CEP: ${CLIENTE_SELECIONADO.cep || "-"}`;
-
-  const payload = {
-    codigoRepre: CODIGO_REPRESENTANTE,
-    qtd: contas.totalCaixas,
-    subtotalProdutos: contas.subtotalProdutos,
-    totalIpi: contas.totalIpi,
-    totalDescontos: 0, // Descontos manuais se aplicável no futuro
-    prazo: PRAZO_SELECIONADO,
-    total: contas.total,
-    clienteInfo: cInfo,
-    itens: JSON.stringify(contas.itens),
+  let c = {
+    cnpj: cCnpj,
+    razao: document.getElementById('nc-razao').value,
+    fantasia: document.getElementById('nc-fantasia').value,
+    telefone: document.getElementById('nc-telefone').value,
+    endereco: document.getElementById('nc-endereco').value,
+    estado: document.getElementById('nc-estado').value,
+    bairro: document.getElementById('nc-bairro').value,
+    municipio: document.getElementById('nc-municipio').value,
+    numero: document.getElementById('nc-numero').value,
+    cep: document.getElementById('nc-cep').value
   };
 
-  // Montagem do Payload para a geração e envio do PDF
-  const dadosPdf = {
-    codigoRepre: CODIGO_REPRESENTANTE,
-    clienteInfo: cInfo,
-    observacoes: obsText,
-    estado: ESTADO_SELECIONADO,
-    prazo: PRAZO_SELECIONADO,
-    itens: contas.itens,
-    contas: {
-      totalIpi: contas.totalIpi,
-      valorFrete: contas.valorFrete,
-      liquido: contas.total,
-    },
-    cliente: {
-      razao: CLIENTE_SELECIONADO.razao,
-    },
-    tipoAcao: tipoAcao, // 'enviar' (Email + Drive), 'enviar_disolle' (Apenas Drive), ou 'visualizar'
+  if (!c.cnpj || !c.razao) { alert("Preencha obrigatoriamente CNPJ e Razão Social."); return; }
+
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'salvar_cliente', cliente: c }) })
+    .then(r => r.json()).then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        CLIENTES.push(c);
+        showToast("✅ Cliente salvo com sucesso!");
+        fecharModalNovoCliente();
+        if (Object.keys(SELECIONADOS).length > 0) {
+          document.getElementById('modal-cliente').style.display = 'flex';
+          document.getElementById('modal-cliente').classList.add('open');
+          ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
+            document.getElementById('cli-' + f).value = c[f] || '';
+          });
+        }
+      } else { alert(res.message); }
+    }).catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Erro de conexão.");
+    });
+}
+
+function abrirModalBuscarCliente() {
+  document.getElementById('input-busca-cliente').value = '';
+  document.getElementById('lista-busca-clientes').innerHTML = '<div class="vazio">Digite CNPJ, Fantasia ou Cidade para pesquisar...</div>';
+  document.getElementById('modal-buscar-cliente').style.display = 'flex';
+  document.getElementById('modal-buscar-cliente').classList.add('open');
+}
+
+function fecharModalBuscarCliente() {
+  document.getElementById('modal-buscar-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-buscar-cliente').style.display = 'none', 300);
+}
+
+function fecharModalDetalhesCliente() {
+  document.getElementById('modal-detalhes-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-detalhes-cliente').style.display = 'none', 300);
+}
+
+function executarBuscaCliente() {
+  let v = document.getElementById('input-busca-cliente').value.trim();
+  if (!v) { alert("Digite algum parâmetro para pesquisar."); return; }
+
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  setTimeout(() => {
+    filtrarClientesBusca();
+    document.getElementById('loading-modal').classList.remove('open');
+    document.getElementById('loading-modal').style.display = 'none';
+  }, 300);
+}
+
+function filtrarClientesBusca() {
+  let v = document.getElementById('input-busca-cliente').value.trim();
+  let container = document.getElementById('lista-busca-clientes');
+  container.innerHTML = '';
+
+  let filtrados = CLIENTES.filter(c =>
+    buscaInteligente([c.cnpj, c.fantasia, c.razao, c.municipio, c.estado], v)
+  );
+
+  if (filtrados.length === 0) { container.innerHTML = '<div class="vazio">Nenhum cliente localizado na base.</div>'; return; }
+
+  filtrados.forEach(c => {
+    let d = document.createElement('div');
+    d.className = 'sel-row';
+    d.style.cursor = 'pointer';
+    d.style.padding = '10px';
+    d.onclick = () => mostrarFichaCompletaCliente(c);
+    d.innerHTML = `<div style="display:flex;flex-direction:column;width:100%;">
+      <span style="font-weight:bold;color:var(--verde-dk);">${c.fantasia || c.razao}</span>
+      <span style="font-size:11px;color:var(--sub);">${c.cnpj} — ${c.municipio || ''}/${c.estado || ''}</span>
+    </div>`;
+    container.appendChild(d);
+  });
+}
+
+function mostrarFichaCompletaCliente(c) {
+  document.getElementById('conteudo-detalhes-cliente').innerHTML = `
+    <div style="margin-bottom:6px;"><b>CNPJ:</b> ${c.cnpj || '-'}</div>
+    <div style="margin-bottom:6px;"><b>RAZÃO SOCIAL:</b> ${c.razao || '-'}</div>
+    <div style="margin-bottom:6px;"><b>NOME FANTASIA:</b> ${c.fantasia || '-'}</div>
+    <div style="margin-bottom:6px;"><b>TELEFONE:</b> ${c.telefone || '-'}</div>
+    <div style="margin-bottom:6px;"><b>ENDEREÇO:</b> ${c.endereco || '-'}</div>
+    <div style="margin-bottom:6px;"><b>ESTADO:</b> ${c.estado || '-'}</div>
+    <div style="margin-bottom:6px;"><b>BAIRRO:</b> ${c.bairro || '-'}</div>
+    <div style="margin-bottom:6px;"><b>MUNICÍPIO:</b> ${c.municipio || '-'}</div>
+    <div style="margin-bottom:6px;"><b>NÚMERO:</b> ${c.numero || '-'}</div>
+    <div style="margin-bottom:6px;"><b>CEP:</b> ${c.cep || '-'}</div>
+  `;
+
+  let btnUsar = document.getElementById('btn-selecionar-cliente-busca');
+  btnUsar.style.display = 'block';
+  
+  btnUsar.onclick = () => {
+    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email'].forEach(f => {
+      let input = document.getElementById('cli-' + f);
+      if (input) input.value = c[f] || '';
+    });
+    
+    if(c.estado) {
+      let estadoUpper = c.estado.toUpperCase().trim();
+      let optD = document.querySelector(`#uf-d option[value="${estadoUpper}"]`);
+      if(optD) {
+        document.getElementById('uf-d').value = estadoUpper;
+        document.getElementById('uf-m').value = estadoUpper;
+        calcularTudo();
+      }
+    }
+
+    ativarClienteKNE825(c.cnpj || '');
+    fecharModalDetalhesCliente();
+    fecharModalBuscarCliente();
+    showToast("✅ Cliente vinculado! Adicione os itens e finalize.");
   };
+
+  document.getElementById('modal-detalhes-cliente').style.display = 'flex';
+  document.getElementById('modal-detalhes-cliente').classList.add('open');
+}
+
+// =============================================
+// PDF E ENVIO DE PEDIDOS
+// =============================================
+function abrirFluxoFechamento(t) {
+  fecharSheet();
+  document.getElementById('modal-cliente').style.display = 'flex';
+  document.getElementById('modal-cliente').classList.add('open');
+}
+
+function fecharModalCliente() {
+  document.getElementById('modal-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-cliente').style.display = 'none', 300);
+}
+
+function clicouForaCliente(e) { if (e.target === document.getElementById('modal-cliente')) fecharModalCliente(); }
+
+function confirmarSalvamentoPedido() {
+  let cnpj = document.getElementById('cli-cnpj').value;
+  let razao = document.getElementById('cli-razao').value;
+  if (!cnpj || !razao) { alert("Preencha o CNPJ e a Razão Social para prosseguir."); return; }
+
+  let obs = document.getElementById('cli-obs').value.trim();
+  let strCli = `CNPJ/CPF: ${cnpj}\nRazão Social: ${razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`;
+
+  DADOS_PDF_PRONTO.clienteInfo = strCli;
+  DADOS_PDF_PRONTO.observacoes = obs;
+  DADOS_PDF_PRONTO.tipoAcao = 'enviar';
+  DADOS_PDF_PRONTO.cliente = {
+    cnpj, razao,
+    fantasia: document.getElementById('cli-fantasia').value,
+    telefone: document.getElementById('cli-telefone').value,
+    endereco: document.getElementById('cli-endereco').value,
+    estado: document.getElementById('cli-estado').value,
+    bairro: document.getElementById('cli-bairro').value,
+    municipio: document.getElementById('cli-municipio').value,
+    numero: document.getElementById('cli-numero').value,
+    cep: document.getElementById('cli-cep').value,
+    email: document.getElementById('cli-email').value,
+    obs
+  };
+
+  fecharModalCliente();
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  let payloadPlanilha = {
+    acao: 'pedido',
+    qtd: document.getElementById('cart-count').innerText,
+    subtotalProdutos: DADOS_PDF_PRONTO.contas.subtotal,
+    totalIpi: DADOS_PDF_PRONTO.contas.totalIpi,
+    totalDescontos: DADOS_PDF_PRONTO.contas.valPrazo,
+    prazo: DADOS_PDF_PRONTO.prazo,
+    total: DADOS_PDF_PRONTO.contas.liquido,
+    clienteInfo: strCli + (obs ? "\nObs: " + obs : ""),
+    itens: JSON.stringify(DADOS_PDF_PRONTO.itens.map(x => `${x.codigo} (${x.qtd}cx)`))
+  };
+
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify(payloadPlanilha) })
+    .then(() => fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) }))
+    .then(r => r.json())
+    .then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
+        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
+        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
+          document.getElementById(id).classList.add('liberado');
+          document.getElementById(id).disabled = false;
+        });
+        document.getElementById('modal-sucesso').style.display = 'flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+      } else { alert("Erro ao processar PDF: " + res.message); }
+    })
+    .catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Falha na comunicação geral da transação.");
+    });
+}
+
+function acionarPdf(tipo) {
+  if (!DADOS_PDF_PRONTO || DADOS_PDF_PRONTO.itens.length === 0) { alert("Carrinho vazio."); return; }
+  DADOS_PDF_PRONTO.tipoAcao = tipo;
+  if (tipo === 'baixar' && !DADOS_PDF_PRONTO.clienteInfo) {
+    DADOS_PDF_PRONTO.clienteInfo = "Download Rápido - Sem dados cadastrais preenchidos";
+  }
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) })
+    .then(r => r.json()).then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Pedido.pdf`;
+        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
+        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        document.getElementById('modal-sucesso').style.display = 'flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+      } else { alert("Erro ao processar operação: " + res.message); }
+    }).catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Falha de rede.");
+    });
+}
+
+// =============================================
+// UPLOAD DE PDF MANUAL
+// =============================================
+function abrirModalUpload() {
+  document.getElementById('modal-upload').style.display = 'flex';
+  document.getElementById('modal-upload').classList.add('open');
+}
+function fecharModalUpload() {
+  document.getElementById('modal-upload').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-upload').style.display = 'none', 300);
+}
+
+function enviarPdfManual() {
+  let fileInput = document.getElementById('file-manual');
+  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
+  let file = fileInput.files[0];
+  let reader = new FileReader();
+  reader.onload = function (e) {
+    document.getElementById('loading-modal').style.display = 'flex';
+    document.getElementById('loading-modal').classList.add('open');
+    fetch(URL_GOOGLE_SCRIPT, {
+      method: 'POST',
+      body: JSON.stringify({
+        acao: 'upload_pdf_manual',
+        fileName: CODIGO_REPRE + " - Pedido Manual - " + file.name,
+        fileMimeType: file.type,
+        fileBase64: e.target.result
+      })
+    }).then(r => r.json()).then(res => {
+      fecharModalUpload();
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        document.getElementById('modal-sucesso').style.display = 'flex';
+        document.getElementById('modal-sucesso').classList.add('open');
+        fileInput.value = "";
+      } else { alert("Erro: " + res.message); }
+    }).catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Erro ao enviar.");
+    });
+  };
+  reader.readAsDataURL(file);
+}
+
+// =============================================
+// IMPORTAR PEDIDO VIA PDF (EDITAR PEDIDO)
+// Usa PDF.js localmente — sem API, sem custo
+// =============================================
+
+// Carrega PDF.js sob demanda (só quando precisar)
+function carregarPdfJs() {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) { resolve(); return; }
+    let script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    script.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve();
+    };
+    script.onerror = () => reject(new Error("Falha ao carregar leitor de PDF."));
+    document.head.appendChild(script);
+  });
+}
+
+// Extrai todo o texto do PDF página a página
+async function extrairTextoPdf(file) {
+  let arrayBuffer = await file.arrayBuffer();
+  let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let textoTotal = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    let page = await pdf.getPage(i);
+    let content = await page.getTextContent();
+    // Reconstrói linhas usando posição Y para detectar quebras reais
+    let ultimoY = null;
+    let linhaAtual = '';
+    content.items.forEach(it => {
+      let y = it.transform ? Math.round(it.transform[5]) : null;
+      if (ultimoY !== null && y !== null && Math.abs(y - ultimoY) > 2) {
+        textoTotal += linhaAtual.trim() + '\n';
+        linhaAtual = '';
+      }
+      linhaAtual += (linhaAtual ? ' ' : '') + it.str;
+      if (y !== null) ultimoY = y;
+    });
+    if (linhaAtual.trim()) textoTotal += linhaAtual.trim() + '\n';
+    textoTotal += '\n';
+  }
+  return textoTotal;
+}
+
+// Parseia o texto extraído do PDF di solle para dados estruturados
+function parsearPedidoDiSolle(texto) {
+  let resultado = {
+    cliente: { cnpj:'', razao:'', fantasia:'', telefone:'', endereco:'',
+               estado:'', bairro:'', municipio:'', numero:'', cep:'', email:'', obs:'' },
+    prazo: '',
+    estado_destino: '',
+    itens: []
+  };
+
+  // Normaliza espaços múltiplos
+  let t = texto.replace(/\s+/g, ' ');
+
+  // ---- DADOS DO CLIENTE ----
+  let campo = (label, proxLabels) => {
+    let pattern = label + '\\s*[:\\-]?\\s*([\\s\\S]+?)(?=' + proxLabels + '|$)';
+    let m = t.match(new RegExp(pattern, 'i'));
+    return m ? m[1].trim().replace(/\s+/g, ' ') : '';
+  };
+
+  // CNPJ
+  let cnpjM = t.match(/CNPJ[\s\/CPF]*[:\-]?\s*([\d.\-\/]+)/i);
+  resultado.cliente.cnpj = cnpjM ? cnpjM[1].trim() : '';
+
+  // Razão Social
+  let razaoM = t.match(/Raz[aã]o Social[:\-]?\s*([^\n]+?)(?=Fantasia|Telefone|Endere)/i);
+  resultado.cliente.razao = razaoM ? razaoM[1].trim() : '';
+
+  // Fantasia
+  let fantasiaM = t.match(/Fantasia[:\-]?\s*([^\n]+?)(?=Telefone|Endere|CNPJ|$)/i);
+  resultado.cliente.fantasia = fantasiaM ? fantasiaM[1].trim() : '';
+
+  // Telefone
+  let telM = t.match(/Telefone[:\-]?\s*([\d\s\(\)\-]+?)(?=Endere|Estado|Bairro|CEP|$)/i);
+  resultado.cliente.telefone = telM ? telM[1].trim() : '';
+
+  // Endereço
+  let endM = t.match(/Endere[çc]o[:\-]?\s*([^\n]+?)(?=Estado|Bairro|Munic|N[uú]mero|CEP|$)/i);
+  resultado.cliente.endereco = endM ? endM[1].trim() : '';
+
+  // Estado
+  let estadoM = t.match(/Estado[:\-]?\s*([A-Z]{2})(?:\s|$)/i);
+  resultado.cliente.estado = estadoM ? estadoM[1].toUpperCase() : '';
+
+  // Bairro
+  let bairroM = t.match(/Bairro[:\-]?\s*([^\n]+?)(?=Munic|N[uú]mero|CEP|Estado|$)/i);
+  resultado.cliente.bairro = bairroM ? bairroM[1].trim() : '';
+
+  // Município
+  let munM = t.match(/Munic[íi]pio[:\-]?\s*([^\n]+?)(?=N[uú]mero|CEP|E-mail|Observa|Estado|$)/i);
+  resultado.cliente.municipio = munM ? munM[1].trim() : '';
+
+  // Número
+  let numM = t.match(/N[uú]mero[:\-]?\s*(\d+)/i);
+  resultado.cliente.numero = numM ? numM[1].trim() : '';
+
+  // CEP
+  let cepM = t.match(/CEP[:\-]?\s*([\d\-]+)/i);
+  resultado.cliente.cep = cepM ? cepM[1].trim() : '';
+
+  // Email
+  let emailM = t.match(/E-?mail[:\-]?\s*([\w.\-+]+@[\w.\-]+)/i);
+  resultado.cliente.email = emailM ? emailM[1].trim() : '';
+
+  // Observações
+  let obsM = t.match(/Observa[çc][oõ]es[:\-]?\s*([^\n]+?)(?=Estado Destino|Prazo|Foto|$)/i);
+  resultado.cliente.obs = obsM ? obsM[1].trim() : '';
+
+  // ---- ESTADO DESTINO e PRAZO ----
+  let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
+  resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
+
+  let prazoM = t.match(/Prazo Selecionado[:\|]?\s*((?:ANTECIPADO|[\d\/]+ DIAS)[^\n|]*?)(?:\s*(?:\||\n|FOTO|$))/i);
+  resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
+
+  // ---- ITENS ----
+  // Padrão de linha: CODIGO  DESCRICAO  QTD  ...
+  // Código Di Solle: 13 dígitos numéricos
+  let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z][A-Z0-9 \/\-\.]+?)\s+(\d{1,4})\s+R\$/g)];
+  
+  if (linhasItens.length === 0) {
+    // Fallback: tenta 10+ dígitos seguidos de texto e quantidade
+    linhasItens = [...t.matchAll(/(\d{10,15})\s+([A-Z][A-Z0-9 \/\-\.]{4,80}?)\s+(\d{1,4})\s+R\$/g)];
+    linhasItens.forEach(m => {
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
+    });
+  } else {
+    linhasItens.forEach(m => {
+      resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
+    });
+  }
+
+  // Remove duplicatas (mesmo código, soma qtds se aparecer mais de uma vez)
+  let itensMapa = {};
+  resultado.itens.forEach(it => {
+    if (itensMapa[it.codigo]) {
+      itensMapa[it.codigo].qtd += it.qtd;
+    } else {
+      itensMapa[it.codigo] = { ...it };
+    }
+  });
+  resultado.itens = Object.values(itensMapa);
+
+  return resultado;
+}
+
+async function importarPedidoPdf() {
+  let fileInput = document.getElementById('file-manual');
+  if (!fileInput.files.length) { alert("Selecione um arquivo PDF primeiro."); return; }
+  let file = fileInput.files[0];
+
+  fecharModalUpload();
+  document.getElementById('modal-importando').style.display = 'flex';
+  document.getElementById('modal-importando').classList.add('open');
 
   try {
-    let processarRegPedidos = true;
+    document.getElementById('import-status-txt').innerText = 'Carregando leitor de PDF...';
+    await carregarPdfJs();
 
-    // Se a ação for criar PDF ou Enviar e-mail, chama a função PDF do backend
-    if (tipoAcao === "enviar" || tipoAcao === "enviar_disolle" || tipoAcao === "pdf") {
-      const responsePdf = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify({
-          acao: "pdf",
-          dadosPdf: dadosPdf,
-        }),
-      });
+    document.getElementById('import-status-txt').innerText = 'Lendo o arquivo PDF...';
+    let texto = await extrairTextoPdf(file);
 
-      const resPdf = await responsePdf.json();
+    document.getElementById('import-status-txt').innerText = 'Identificando cliente e itens...';
+    let pedido = parsearPedidoDiSolle(texto);
 
-      if (resPdf.status !== "success") {
-        throw new Error(resPdf.message || "Erro durante o processamento do arquivo PDF.");
-      }
+    if (pedido.itens.length === 0) {
+      throw new Error("Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
+    }
 
-      // Se for apenas visualizar o PDF (sem envio imediato ao banco de pedidos)
-      if (tipoAcao === "pdf") {
-        processarRegPedidos = false;
-        abrirBlobPdfBase64(resPdf.base64, resPdf.nomeArquivo);
-      } else {
-        alert(`Pedido Processado!\nE-mail: ${resPdf.emailStatus}`);
+    // Aguarda produtos carregados
+    if (PRODUTOS.length === 0) {
+      document.getElementById('import-status-txt').innerText = 'Carregando catálogo...';
+      await carregarDados();
+    }
+
+    // Preenche campos do cliente
+    let cli = pedido.cliente;
+    ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
+      let el = document.getElementById('cli-' + f);
+      if (el && cli[f]) el.value = cli[f];
+    });
+
+    // Define UF destino
+    let uf = (pedido.estado_destino || cli.estado || '').toUpperCase().trim();
+    if (uf) {
+      let optD = document.querySelector(`#uf-d option[value="${uf}"]`);
+      if (optD) {
+        document.getElementById('uf-d').value = uf;
+        document.getElementById('uf-m').value = uf;
       }
     }
 
-    // Grava as informações do Pedido no histórico da planilha
-    if (processarRegPedidos) {
-      const responseReg = await fetch(API_URL, {
-        method: "POST",
-        body: JSON.stringify(payload),
-      });
+    // Configura prazo
+    let prazoStr = pedido.prazo;
+    let avisos = [];
+    let prazoEncontrado = false;
 
-      const resReg = await responseReg.json();
-      if (resReg.status === "success") {
-        alert("Pedido guardado na base de dados com sucesso!");
-        limparTudoAposEnvio();
-      } else {
-        alert(`Erro ao registar o pedido: ${resReg.message}`);
+    if (prazoStr) {
+      // Procura em SUB_PRAZOS
+      for (let [val, opcoes] of Object.entries(SUB_PRAZOS)) {
+        if (opcoes.includes(prazoStr)) {
+          document.getElementById('prazo-d').value = val;
+          document.getElementById('prazo-m').value = val;
+          alterouPrazoBase('prazo-d', 'prazo-m');
+          setTimeout(() => {
+            ['subprazo-d','subprazo-m'].forEach(id => {
+              let sel = document.getElementById(id);
+              if (sel) for (let opt of sel.options) { if (opt.value === prazoStr) { sel.value = prazoStr; break; } }
+            });
+          }, 150);
+          prazoEncontrado = true;
+          break;
+        }
+      }
+      // Prazo simples
+      if (!prazoEncontrado) {
+        const MAP = { "28 DIAS":"9","35 DIAS":"7","42 DIAS":"5","56 DIAS":"2","63 DIAS":"0","ANTECIPADO":"14" };
+        if (MAP[prazoStr]) {
+          document.getElementById('prazo-d').value = MAP[prazoStr];
+          document.getElementById('prazo-m').value = MAP[prazoStr];
+          alterouPrazoBase('prazo-d', 'prazo-m');
+          prazoEncontrado = true;
+        }
+      }
+      if (!prazoEncontrado) {
+        avisos.push(`⚠️ Prazo "${prazoStr}" não mapeado automaticamente — selecione manualmente.`);
       }
     }
 
-    mostrarLoading(false);
-    ENVIANDO_PEDIDO = false;
-  } catch (e) {
-    console.error(e);
-    alert(`Ocorreu um erro ao processar a ação: ${e.message}`);
-    mostrarLoading(false);
-    ENVIANDO_PEDIDO = false;
+    // Importa itens para SELECIONADOS
+    SELECIONADOS = {};
+    let itensImportados = 0;
+    let itensFaltantes = [];
+
+    pedido.itens.forEach(item => {
+      let codBusca = String(item.codigo).trim().toLowerCase();
+      let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === codBusca)
+               || PRODUTOS.find(p => p.codigo.replace(/^0+/,'') === codBusca.replace(/^0+/,''));
+
+      if (prod) {
+        let key = prod.codigo.toLowerCase().trim();
+        let qtdMin = prod.qtdEmbalagem || 1;
+        let qtd = parseInt(item.qtd) || qtdMin;
+        if (qtd % qtdMin !== 0) qtd = Math.ceil(qtd / qtdMin) * qtdMin;
+        SELECIONADOS[key] = { produto: prod, qtd };
+        itensImportados++;
+      } else {
+        itensFaltantes.push(item.codigo);
+      }
+    });
+
+    calcularTudo();
+    if (cli.cnpj) ativarClienteKNE825(cli.cnpj);
+
+    document.getElementById('modal-importando').classList.remove('open');
+    document.getElementById('modal-importando').style.display = 'none';
+    fileInput.value = '';
+
+    if (itensFaltantes.length > 0) {
+      avisos.push(`⚠️ ${itensFaltantes.length} item(ns) não encontrado(s) no catálogo: ${itensFaltantes.join(', ')}`);
+    }
+
+    document.getElementById('import-resumo-txt').innerText =
+      `${itensImportados} item(ns) carregado(s) com sucesso.`;
+
+    let avisosEl = document.getElementById('import-avisos');
+    let avisosFiltrados = avisos.filter(a => a.includes('item(ns) não encontrado'));
+    if (avisosFiltrados.length > 0) {
+      avisosEl.innerHTML = avisosFiltrados.map(a => `<div style="margin-bottom:4px;">${a}</div>`).join('');
+      avisosEl.style.display = 'block';
+    } else {
+      avisosEl.style.display = 'none';
+    }
+    document.getElementById('modal-importado').style.display = 'flex';
+    document.getElementById('modal-importado').classList.add('open');
+
+  } catch (err) {
+    document.getElementById('modal-importando').classList.remove('open');
+    document.getElementById('modal-importando').style.display = 'none';
+    alert("Erro ao importar pedido: " + err.message);
   }
 }
 
-// ==========================================
-// 8. FUNÇÕES UTILITÁRIAS E INTERFACE (AUX)
-// ==========================================
-
-function fmtBRL(v) {
-  const n = parseFloat(v) || 0;
-  return "R$ " + n.toFixed(2).replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+function fecharModalImportado() {
+  document.getElementById('modal-importado').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-importado').style.display = 'none', 300);
 }
 
-function normalizarReferencia(val) {
-  if (val === undefined || val === null) return "";
-  let s = String(val).trim();
-  if (s.endsWith(".0")) s = s.slice(0, -2);
-  return s.toLowerCase();
+// =============================================
+// NAVEGAÇÃO — MODAIS, SHEET E CARRINHO
+// =============================================
+function fecharModalSucesso() {
+  document.getElementById('modal-sucesso').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-sucesso').style.display = 'none', 300);
+  if (DADOS_PDF_PRONTO && DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') { limSel(); }
+  fecharSheet();
 }
+function clicouForaSucesso(e) { if (e.target === document.getElementById('modal-sucesso')) fecharModalSucesso(); }
 
-function setTxtVal(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = val;
+function abrirSheet() { document.getElementById('b-sheet').classList.add('open'); document.getElementById('sh-ov').classList.add('open'); }
+function fecharSheet() { document.getElementById('b-sheet').classList.remove('open'); document.getElementById('sh-ov').classList.remove('open'); }
+
+function abrirCarrinho() {
+  document.getElementById('modal-carrinho').style.display = 'flex';
+  document.getElementById('modal-carrinho').classList.add('open');
 }
-
-function setInpVal(id, val) {
-  const el = document.getElementById(id);
-  if (el) el.value = val;
+function fecharCarrinho() {
+  document.getElementById('modal-carrinho').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-carrinho').style.display = 'none', 300);
 }
+function clicouForaCarrinho(e) { if (e.target === document.getElementById('modal-carrinho')) fecharCarrinho(); }
 
-function mostrarLoading(visivel, mensagem = "") {
-  const loader = document.getElementById("loader-global");
-  const loaderTxt = document.getElementById("loader-texto");
-  if (!loader) return;
-
-  if (visivel) {
-    if (loaderTxt) loaderTxt.textContent = mensagem;
-    loader.style.display = "flex";
-  } else {
-    loader.style.display = "none";
-  }
-}
-
-function abrirBlobPdfBase64(base64Data, nomeArquivo) {
-  const byteCharacters = atob(base64Data.split(",")[1]);
-  const byteNumbers = new Array(byteCharacters.length);
-  for (let i = 0; i < byteCharacters.length; i++) {
-    byteNumbers[i] = byteCharacters.charCodeAt(i);
-  }
-  const byteArray = new Uint8Array(byteNumbers);
-  const blob = new Blob([byteArray], { type: "application/pdf" });
-
-  const blobUrl = URL.createObjectURL(blob);
-  
-  // Abre o PDF numa nova aba do browser ou força o download
-  const link = document.createElement("a");
-  link.href = blobUrl;
-  link.download = nomeArquivo;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function limparTudoAposEnvio() {
-  CARRINHO = [];
-  CLIENTE_SELECIONADO = null;
-  ESTADO_SELECIONADO = "";
-  PRAZO_SELECIONADO = "";
-  
-  const selCli = document.getElementById("select-cliente");
-  if (selCli) selCli.value = "";
-
-  const selEst = document.getElementById("select-estado");
-  if (selEst) selEst.value = "";
-
-  const selPrazo = document.getElementById("select-prazo");
-  if (selPrazo) selPrazo.value = "";
-
-  const obs = document.getElementById("obs-text");
-  if (obs) obs.value = "";
-
-  atualizarCarrinhoUI();
-  renderizarProdutos();
-}
-
-// Modais - Gatilhos de Abertura/Fecho
 function abrirModalNovoCliente() {
   BLOQUEIA_SALVAMENTO_CNPJ = false;
-  const btn = document.getElementById("btn-salvar-nc");
-  if (btn) btn.disabled = false;
-  
-  const modal = document.getElementById("modal-novo-cliente");
-  if (modal) modal.style.display = "flex";
+  document.getElementById('btn-salvar-nc').disabled = false;
+  document.getElementById('modal-novo-cliente').style.display = 'flex';
+  document.getElementById('modal-novo-cliente').classList.add('open');
 }
-
 function fecharModalNovoCliente() {
-  const modal = document.getElementById("modal-novo-cliente");
-  if (modal) modal.style.display = "none";
-  document.getElementById("form-novo-cliente")?.reset();
-}
-
-function abrirImagemAmpliada(fileId) {
-  if (!fileId) return;
-  const modal = document.getElementById("modal-imagem-ampliada");
-  const img = document.getElementById("img-ampliada");
-  if (modal && img) {
-    img.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w800`;
-    modal.style.display = "flex";
-  }
-}
-
-function fecharModalImagem() {
-  const modal = document.getElementById("modal-imagem-ampliada");
-  if (modal) modal.style.display = "none";
+  document.getElementById('modal-novo-cliente').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-novo-cliente').style.display = 'none', 300);
 }
