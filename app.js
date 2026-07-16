@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbz-B1tg40LYDZuYMbgAn47dJsyzlVKa9UbnA0xMW22KPoC0SDBVKDIpMHUbnU58RPKY/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbzwIMPgXmIMcxevIEDDAaoUzKO4VRM9hjiLOPHGLHgE3c0oveCLC-dFiHSR8h_o_2aitA/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -122,9 +122,10 @@ function getPrecoEspecialMillenium(produto, chavePrazo) {
   let codNorm = produto.codigo.toLowerCase().trim();
   let entry = TABELA_MILLENIUM[codNorm];
   if (!entry) {
-    let sem0 = codNorm.replace(/^0+/, '');
+    let semZerosBorda = codNorm.replace(/^0+/, '').replace(/0+$/, '');
     for (let k of Object.keys(TABELA_MILLENIUM)) {
-      if (k.replace(/^0+/, '') === sem0) { entry = TABELA_MILLENIUM[k]; break; }
+      if (k.replace(/^0+/, '') === codNorm.replace(/^0+/, '')) { entry = TABELA_MILLENIUM[k]; break; }
+      if (k.replace(/^0+/, '').replace(/0+$/, '') === semZerosBorda) { entry = TABELA_MILLENIUM[k]; break; }
     }
   }
   if (!entry) return null;
