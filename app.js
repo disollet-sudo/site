@@ -695,6 +695,7 @@ function calcularTudo() {
   let chaveMilleniumAtiva = verificarRegraMillenium(); // "42", "63" ou null
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
+  let valDescPrazo = 0;
 
   Object.keys(SELECIONADOS).forEach(c => {
     let item = SELECIONADOS[c];
@@ -704,11 +705,20 @@ function calcularTudo() {
     subtotalProdutos += totalItemOriginal;
     contItens += qty;
 
-    let valorComDescontoPrazo = precoUnit * pctPrazo;
+    // Itens que vieram da tabela especial (KNE825 ou MILLENIUM) já têm o preço líquido
+    // negociado para o prazo antecipado — NÃO podem levar o desconto de prazo de novo.
+    let veioDeTabelaEspecial =
+      (CLIENTE_ESPECIAL_ATIVO && getPrecoEspecialKNE825(p) !== null) ||
+      (!!chaveMilleniumAtiva && getPrecoEspecialMillenium(p, chaveMilleniumAtiva, tabelaAtiva) !== null);
+
+    let pctPrazoItem = veioDeTabelaEspecial ? 1 : pctPrazo;
+
+    let valorComDescontoPrazo = precoUnit * pctPrazoItem;
     let valorIpiCada = valorComDescontoPrazo * (p.ipi / 100);
     let valorItemComIpi = valorComDescontoPrazo + valorIpiCada;
     let valorTotalItemDescIpi = valorItemComIpi * qty;
     totalIpi += (valorIpiCada * qty);
+    valDescPrazo += (totalItemOriginal - (valorComDescontoPrazo * qty));
 
     listaItensPdf.push({
       fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
@@ -730,8 +740,6 @@ function calcularTudo() {
   document.getElementById('cart-count').innerText = Object.keys(SELECIONADOS).length;
   document.getElementById('cart-count-m').innerText = Object.keys(SELECIONADOS).length;
 
-  let valDescPrazo = 0;
-  if (prazoBase > 0) { valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo); }
   let subtotalLiquidoParcial = (subtotalProdutos - valDescPrazo) + totalIpi;
 
   let freteVal = 0, configFrete = FRETE_REGRAS[uf] || null;
