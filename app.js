@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbzwIMPgXmIMcxevIEDDAaoUzKO4VRM9hjiLOPHGLHgE3c0oveCLC-dFiHSR8h_o_2aitA/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbzpGZOCuM0db0iGCSG6gq1x9fHmknIwjt86xMlT4Z88ekScy4V3jEM7-Y84qT9fthcJMg/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -109,7 +109,7 @@ function getPrecoFinal(produto, tabelaNormal) {
   }
   let chaveMillenium = verificarRegraMillenium();
   if (chaveMillenium) {
-    let espM = getPrecoEspecialMillenium(produto, chaveMillenium);
+    let espM = getPrecoEspecialMillenium(produto, chaveMillenium, tabelaNormal);
     if (espM !== null) return espM;
   }
   return produto.emPromocao ? (produto.precosPromo[tabelaNormal] || 0) : (produto.precos[tabelaNormal] || 0);
@@ -118,7 +118,7 @@ function getPrecoFinal(produto, tabelaNormal) {
 // =============================================
 // TABELA ESPECIAL MILLENIUM
 // =============================================
-function getPrecoEspecialMillenium(produto, chavePrazo) {
+function getPrecoEspecialMillenium(produto, chavePrazo, tabelaNormal) {
   let codNorm = produto.codigo.toLowerCase().trim();
   let entry = TABELA_MILLENIUM[codNorm];
   if (!entry) {
@@ -129,7 +129,9 @@ function getPrecoEspecialMillenium(produto, chavePrazo) {
     }
   }
   if (!entry) return null;
-  let preco = entry[chavePrazo];
+  let porTabela = entry[tabelaNormal];
+  if (!porTabela) return null;
+  let preco = porTabela[chavePrazo];
   return (preco !== undefined && preco > 0) ? preco : null;
 }
 
