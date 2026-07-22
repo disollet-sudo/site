@@ -53,6 +53,7 @@ const LS_CARRINHO = 'disolle_carrinho_v1';
 const LS_CLIENTE  = 'disolle_cliente_v1';
 const LS_CONFIG   = 'disolle_config_v1';
 const CAMPOS_CLIENTE_FORM = ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'];
+let RESTAURANDO_ESTADO = false; // true enquanto restaurarEstadoLocal() está rodando, evita sobrescrever o localStorage com dados vazios pela metade
 
 function configurarPersistenciaCliente() {
   CAMPOS_CLIENTE_FORM.forEach(f => {
@@ -62,6 +63,7 @@ function configurarPersistenciaCliente() {
 }
 
 function salvarCarrinhoLocal() {
+  if (RESTAURANDO_ESTADO) return;
   try {
     let simples = {};
     Object.keys(SELECIONADOS).forEach(k => { simples[k] = SELECIONADOS[k].qtd; });
@@ -70,6 +72,7 @@ function salvarCarrinhoLocal() {
 }
 
 function salvarClienteLocal() {
+  if (RESTAURANDO_ESTADO) return;
   try {
     let obj = {};
     CAMPOS_CLIENTE_FORM.forEach(f => {
@@ -81,6 +84,7 @@ function salvarClienteLocal() {
 }
 
 function salvarConfigLocal() {
+  if (RESTAURANDO_ESTADO) return;
   try {
     let obj = {
       uf: document.getElementById('uf-d') ? document.getElementById('uf-d').value : '',
@@ -92,6 +96,8 @@ function salvarConfigLocal() {
 }
 
 function restaurarEstadoLocal() {
+  RESTAURANDO_ESTADO = true;
+
   // 1) Restaura UF e prazo (precisa vir antes do carrinho para os preços baterem)
   try {
     let cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null');
@@ -141,6 +147,7 @@ function restaurarEstadoLocal() {
     }
   } catch (e) {}
 
+  RESTAURANDO_ESTADO = false;
   calcularTudo();
 }
 
