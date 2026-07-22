@@ -41,8 +41,146 @@ window.addEventListener('DOMContentLoaded', () => {
     document.getElementById('modal-repre').classList.remove('open');
     atualizarExibicaoRepre();
   }
-  carregarDados();
+  configurarPersistenciaCliente();
+  carregarDados().then(() => { restaurarEstadoLocal(); });
 });
+
+// =============================================
+// PERSISTÊNCIA LOCAL — carrinho e pedido sobrevivem a um recarregamento (F5)
+// =============================================
+const LS_CARRINHO = 'disolle_carrinho_v1';
+const LS_CLIENTE  = 'disolle_cliente_v1';
+const LS_CONFIG   = 'disolle_config_v1';
+const CAMPOS_CLIENTE_FORM = ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'];
+
+function configurarPersistenciaCliente() {
+  CAMPOS_CLIENTE_FORM.forEach(f => {
+    let el = document.getElementById('cli-' + f);
+    if (el) el.addEventListener('input', salvarClienteLocal);
+  });
+}
+
+function salvarCarrinhoLocal() {
+  try {
+    let simples = {};
+    Object.keys(SELECIONADOS).forEach(k => { simples[k] = SELECIONADOS[k].qtd; });
+    localStorage.setItem(LS_CARRINHO, JSON.stringify(simples));
+  } catch (e) {}
+}
+
+function salvarClienteLocal() {
+  try {
+    let obj = {};
+    CAMPOS_CLIENTE_FORM.forEach(f => {
+      let el = document.getElementById('cli-' + f);
+      if (el) obj[f] = el.value;
+    });
+    localStorage.setItem(LS_CLIENTE, JSON.stringify(obj));
+  } catch (e) {}
+}
+
+function salvarConfigLocal() {
+  try {
+    let obj = {
+      uf: document.getElementById('uf-d') ? document.getElementById('uf-d').value : '',
+      prazo: document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '',
+      subprazo: document.getElementById('subprazo-d') ? document.getElementById('subprazo-d').value : ''
+    };
+    localStorage.setItem(LS_CONFIG, JSON.stringify(obj));
+  } catch (e) {}
+}
+
+function restaurarEstadoLocal() {
+  // 1) Restaura UF e prazo (precisa vir antes do carrinho para os preços baterem)
+  try {
+    let cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null');
+    if (cfg) {
+      if (cfg.uf) {
+        let optD = document.querySelector(`#uf-d option[value="${cfg.uf}"]`);
+        if (optD) { document.getElementById('uf-d').value = cfg.uf; document.getElementById('uf-m').value = cfg.uf; }
+      }
+      if (cfg.prazo) {
+        document.getElementById('prazo-d').value = cfg.prazo;
+        document.getElementById('prazo-m').value = cfg.prazo;
+        alterouPrazoBase('prazo-d', 'prazo-m');
+        if (cfg.subprazo) {
+          setTimeout(() => {
+            ['subprazo-d', 'subprazo-m'].forEach(id => {
+              let sel = document.getElementById(id);
+              if (sel) sel.value = cfg.subprazo;
+            });
+          }, 50);
+        }
+      }
+    }
+  } catch (e) {}
+
+  // 2) Restaura dados do cliente digitados
+  try {
+    let cli = JSON.parse(localStorage.getItem(LS_CLIENTE) || 'null');
+    if (cli) {
+      CAMPOS_CLIENTE_FORM.forEach(f => {
+        let el = document.getElementById('cli-' + f);
+        if (el && cli[f]) el.value = cli[f];
+      });
+      if (cli.cnpj) ativarClienteKNE825(cli.cnpj);
+    }
+  } catch (e) {}
+
+  // 3) Restaura o carrinho (depende do catálogo já carregado em PRODUTOS)
+  try {
+    let carr = JSON.parse(localStorage.getItem(LS_CARRINHO) || 'null');
+    if (carr && Object.keys(carr).length > 0) {
+      let restaurados = 0;
+      Object.keys(carr).forEach(cod => {
+        let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === cod);
+        if (prod) { SELECIONADOS[cod] = { produto: prod, qtd: carr[cod] }; restaurados++; }
+      });
+      if (restaurados > 0) showToast(`🛒 Carrinho restaurado (${restaurados} item(ns))`);
+    }
+  } catch (e) {}
+
+  calcularTudo();
+}
+
+function limparEstadoLocal() {
+  try {
+    localStorage.removeItem(LS_CARRINHO);
+    localStorage.removeItem(LS_CLIENTE);
+    localStorage.removeItem(LS_CONFIG);
+  } catch (e) {}
+}
+
+// =============================================
+// NOVO PEDIDO — zera tudo para começar um pedido do zero
+// =============================================
+function iniciarNovoPedido() {
+  let temCarrinho = Object.keys(SELECIONADOS).length > 0;
+  let temCliente = document.getElementById('cli-cnpj') && document.getElementById('cli-cnpj').value.trim() !== '';
+  if (temCarrinho || temCliente) {
+    if (!confirm("Isso vai apagar o carrinho e os dados preenchidos do pedido atual. Deseja iniciar um novo pedido?")) return;
+  }
+
+  SELECIONADOS = {};
+  CLIENTE_ESPECIAL_ATIVO = false;
+
+  CAMPOS_CLIENTE_FORM.forEach(f => {
+    let el = document.getElementById('cli-' + f);
+    if (el) el.value = '';
+  });
+
+  document.getElementById('uf-d').value = '';
+  document.getElementById('uf-m').value = '';
+  document.getElementById('prazo-d').selectedIndex = 0;
+  document.getElementById('prazo-m').selectedIndex = 0;
+  alterouPrazoBase('prazo-d', 'prazo-m');
+
+  limparEstadoLocal();
+  calcularTudo();
+  fecharCarrinho();
+  fecharSheet();
+  showToast("🆕 Novo pedido iniciado!");
+}
 
 // =============================================
 // REPRESENTANTE
@@ -400,6 +538,7 @@ function limSel() {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
   });
+  limparEstadoLocal();
 }
 
 // =============================================
@@ -742,6 +881,9 @@ function calcularTudo() {
   document.getElementById('btn-orc-m').disabled = !lib;
   document.getElementById('btn-baixar-d').disabled = contItens === 0;
   document.getElementById('btn-baixar-m').disabled = contItens === 0;
+
+  salvarCarrinhoLocal();
+  salvarConfigLocal();
 }
 
 // =============================================
@@ -1000,10 +1142,6 @@ function confirmarSalvamentoPedido() {
         let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
         let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        ['btn-disolle-d', 'btn-disolle-m'].forEach(id => {
-          document.getElementById(id).classList.add('liberado');
-          document.getElementById(id).disabled = false;
-        });
         document.getElementById('modal-sucesso').style.display = 'flex';
         document.getElementById('modal-sucesso').classList.add('open');
       } else { alert("Erro ao processar PDF: " + res.message); }
@@ -1389,7 +1527,7 @@ function fecharModalImportado() {
 function fecharModalSucesso() {
   document.getElementById('modal-sucesso').classList.remove('open');
   setTimeout(() => document.getElementById('modal-sucesso').style.display = 'none', 300);
-  if (DADOS_PDF_PRONTO && DADOS_PDF_PRONTO.tipoAcao === 'enviar_disolle') { limSel(); }
+  if (DADOS_PDF_PRONTO && DADOS_PDF_PRONTO.tipoAcao === 'enviar') { limSel(); }
   fecharSheet();
 }
 function clicouForaSucesso(e) { if (e.target === document.getElementById('modal-sucesso')) fecharModalSucesso(); }
