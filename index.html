@@ -144,6 +144,7 @@
       <input type="text" id="busca" placeholder="Código, descrição ou EAN..." oninput="filtrar()">
     </div>
     <div class="badge" id="badge">0 itens</div>
+    <button onclick="iniciarNovoPedido()" title="Iniciar um novo pedido do zero (limpa carrinho e dados)" style="flex-shrink:0;font-weight:700;font-size:13px;background:var(--verde-lt);color:var(--verde-dk);border:1px solid var(--verde);padding:8px 14px;border-radius:8px;cursor:pointer;white-space:nowrap;">🆕 Novo</button>
     <a href="https://wa.me/5554996963401" target="_blank" title="Falar no WhatsApp" style="display:flex;align-items:center;justify-content:center;width:38px;height:38px;background:#25D366;border-radius:50%;flex-shrink:0;text-decoration:none;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="#fff"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.123.554 4.116 1.524 5.849L.057 23.428a.75.75 0 0 0 .916.948l5.743-1.504A11.953 11.953 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.75 9.75 0 0 1-5.031-1.395l-.361-.215-3.741.98.998-3.645-.236-.374A9.75 9.75 0 1 1 12 21.75z"/></svg>
     </a>
@@ -218,7 +219,6 @@
       <div class="btn-group">
         <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>✓ Finalizar</button>
         <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
-        <button class="btn pdf-btn" id="btn-disolle-d" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar Di Solle</button>
       </div>
     </div>
   </aside>
@@ -270,7 +270,6 @@
     <div class="btn-group">
       <button class="btn prim" id="btn-orc-m" onclick="abrirFluxoFechamento('m')" disabled>✓ Finalizar</button>
       <button class="btn" id="btn-baixar-m" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
-      <button class="btn pdf-btn" id="btn-disolle-m" onclick="acionarPdf('enviar_disolle')" disabled>🚀 Enviar Di Solle</button>
     </div>
     <button class="btn" onclick="fecharSheet()" style="margin-top:10px;margin-bottom:0;width:100%;">Fechar Aba</button>
   </div>
