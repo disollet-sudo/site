@@ -43,6 +43,13 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   configurarPersistenciaCliente();
   let veioDeSincronizacao = new URLSearchParams(window.location.search).has('_r');
+  if (veioDeSincronizacao) {
+    // Consome o parâmetro _r e limpa a URL, para que um F5 normal (sem clicar em Sincronizar)
+    // não force esse resync pesado de novo.
+    let urlLimpa = new URL(window.location.href);
+    urlLimpa.searchParams.delete('_r');
+    window.history.replaceState({}, '', urlLimpa.toString());
+  }
   carregarDados(veioDeSincronizacao).then(() => { restaurarEstadoLocal(); });
 });
 
@@ -926,6 +933,7 @@ function buscarClienteAoDigitar(cnpj) {
     ['razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
       document.getElementById('cli-' + f).value = c[f] || '';
     });
+    salvarClienteLocal();
     showToast("✅ Dados do cliente preenchidos automaticamente.");
     ativarClienteKNE825(cnpj);
   } else {
@@ -978,6 +986,7 @@ function salvarNovoCliente() {
           ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep'].forEach(f => {
             document.getElementById('cli-' + f).value = c[f] || '';
           });
+          salvarClienteLocal();
         }
       } else { alert(res.message); }
     }).catch(() => {
@@ -1065,7 +1074,8 @@ function mostrarFichaCompletaCliente(c) {
       let input = document.getElementById('cli-' + f);
       if (input) input.value = c[f] || '';
     });
-    
+    salvarClienteLocal();
+
     if(c.estado) {
       let estadoUpper = c.estado.toUpperCase().trim();
       let optD = document.querySelector(`#uf-d option[value="${estadoUpper}"]`);
@@ -1430,6 +1440,7 @@ async function importarPedidoPdf() {
       let el = document.getElementById('cli-' + f);
       if (el && cli[f]) el.value = cli[f];
     });
+    salvarClienteLocal();
 
     // Define UF destino
     let uf = (pedido.estado_destino || cli.estado || '').toUpperCase().trim();
