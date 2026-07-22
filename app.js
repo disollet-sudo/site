@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyMuQZGqMPfaa0CrJRMawS5UHJzAdksGQ3B5RtnrJ5J945ZrCSZSwZ4UKM0OabIC5hZ/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbytvjKtdDFMa5S6j1z4tQ5CiEq33i7uk3chWs2Y6tcPR-HSQ0wZ3UgjdcIk4DkZzGHbnA/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -42,7 +42,8 @@ window.addEventListener('DOMContentLoaded', () => {
     atualizarExibicaoRepre();
   }
   configurarPersistenciaCliente();
-  carregarDados().then(() => { restaurarEstadoLocal(); });
+  let veioDeSincronizacao = new URLSearchParams(window.location.search).has('_r');
+  carregarDados(veioDeSincronizacao).then(() => { restaurarEstadoLocal(); });
 });
 
 // =============================================
@@ -289,11 +290,15 @@ async function carregarDados(force = false) {
 
 function sincronizarPlanilha() {
   document.getElementById('btn-sync').innerText = "Sincronizando...";
-  document.getElementById('grid').innerHTML = "";
-  carregarDados(true).then(() => {
-    document.getElementById('btn-sync').innerText = "🔄 Sincronizar Catálogo";
-    showToast("Catálogo atualizado!");
-  });
+  // Garante que o carrinho/dados atuais estão salvos antes de recarregar
+  salvarCarrinhoLocal();
+  salvarClienteLocal();
+  salvarConfigLocal();
+  // Força o navegador a buscar TODOS os arquivos de novo (index.html, app.js, estilo.css),
+  // ignorando cache antigo. O carrinho volta sozinho pois foi salvo no localStorage acima.
+  let url = new URL(window.location.href);
+  url.searchParams.set('_r', Date.now());
+  window.location.href = url.toString();
 }
 
 // =============================================
@@ -1144,6 +1149,10 @@ function confirmarSalvamentoPedido() {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         document.getElementById('modal-sucesso').style.display = 'flex';
         document.getElementById('modal-sucesso').classList.add('open');
+        if (res.driveStatus && res.driveStatus.some(d => !d.ok)) {
+          let erros = res.driveStatus.filter(d => !d.ok).map(d => d.erro).join('; ');
+          showToast("⚠️ PDF baixado, mas falhou ao salvar no Drive: " + erros);
+        }
       } else { alert("Erro ao processar PDF: " + res.message); }
     })
     .catch(() => {
