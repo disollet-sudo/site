@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <title>Di Solle</title>
   <link rel="icon" type="image/png" href="https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w64">
-  <link rel="stylesheet" href="estilo.css?v=20260722">
+  <link rel="stylesheet" href="estilo.css?v=20260723">
 </head>
 <body>
 
@@ -29,8 +29,8 @@
   <div class="modal-box" style="padding:30px 20px;max-width:320px;height:auto;text-align:center;position:relative;background:#fff;">
     <button class="modal-close-btn" onclick="fecharModalSucesso()" style="background:#f4f4f2;color:#333;">✕</button>
     <div style="font-size:50px;margin-bottom:10px;">✅</div>
-    <h3 style="color:var(--verde-dk);font-size:20px;margin-bottom:8px;">Ação Concluída!</h3>
-    <p style="font-size:13px;color:var(--sub);">A solicitação foi processada com sucesso.</p>
+    <h3 id="modal-sucesso-titulo" style="color:var(--verde-dk);font-size:20px;margin-bottom:8px;">Ação Concluída!</h3>
+    <p id="modal-sucesso-texto" style="font-size:13px;color:var(--sub);">A solicitação foi processada com sucesso.</p>
     <button class="btn prim" onclick="fecharModalSucesso()" style="margin-top:20px;">Fechar</button>
   </div>
 </div>
@@ -171,6 +171,7 @@
         <button class="btn-lim" onclick="abrirModalUpload()" title="Subir Pedido Manual" style="padding:4px 8px;font-size:16px;background:none;border:none;">⬆️</button>
         <button class="btn-lim" onclick="abrirModalNovoCliente()" title="Adicionar Cliente Manualmente" style="padding:4px 8px;font-size:16px;background:none;border:none;">➕</button>
         <button class="btn-lim" onclick="abrirModalBuscarCliente()" title="Buscar Cliente na Base" style="padding:4px 8px;font-size:16px;background:none;border:none;">🔍👥</button>
+        <button class="btn-lim btn-icon-badge" onclick="abrirModalOrcamentos()" title="Meus Orçamentos" style="padding:4px 8px;font-size:16px;background:none;border:none;position:relative;">🧾<span id="badge-orcamentos" class="badge-orc" style="display:none;">0</span></button>
       </span>
       <span style="font-size:12px;color:var(--sub)" id="cont"></span>
       <button class="btn-lim btn-sync" id="btn-sync" onclick="sincronizarPlanilha()">🔄 Sincronizar Catálogo</button>
@@ -217,8 +218,8 @@
         <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rd-total">R$ 0,00</b></div>
       </div>
       <div class="btn-group">
-        <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>✓ Finalizar</button>
-        <button class="btn" id="btn-baixar-d" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
+        <button class="btn prim" id="btn-orc-d" onclick="abrirFluxoFechamento('d')" disabled>✓ Efetuar Pedido</button>
+        <button class="btn btn-orcamento" id="btn-baixar-d" onclick="abrirFluxoOrcamento('d')" disabled>🧾 Orçamento</button>
       </div>
     </div>
   </aside>
@@ -268,8 +269,8 @@
       <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rm-total">R$ 0,00</b></div>
     </div>
     <div class="btn-group">
-      <button class="btn prim" id="btn-orc-m" onclick="abrirFluxoFechamento('m')" disabled>✓ Finalizar</button>
-      <button class="btn" id="btn-baixar-m" onclick="acionarPdf('baixar')" disabled style="background:#fff;color:var(--verde-dk);border-color:var(--verde);">⬇️ Baixar PDF</button>
+      <button class="btn prim" id="btn-orc-m" onclick="abrirFluxoFechamento('m')" disabled>✓ Efetuar Pedido</button>
+      <button class="btn btn-orcamento" id="btn-baixar-m" onclick="abrirFluxoOrcamento('m')" disabled>🧾 Orçamento</button>
     </div>
     <button class="btn" onclick="fecharSheet()" style="margin-top:10px;margin-bottom:0;width:100%;">Fechar Aba</button>
   </div>
@@ -300,7 +301,8 @@
 
 <div class="modal" id="modal-cliente" onclick="clicouForaCliente(event)">
   <div class="modal-box" style="padding:24px;max-width:400px;height:auto;max-height:94vh;">
-    <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">📋 DADOS DO CLIENTE</h3>
+    <h3 id="modal-cliente-titulo" style="margin-bottom:8px;color:var(--verde-dk);font-size:16px;text-align:center;">📋 DADOS DO CLIENTE</h3>
+    <p id="modal-cliente-nota" style="display:none;font-size:12px;color:var(--sub);background:var(--verde-lt);border:1px solid var(--verde);border-radius:8px;padding:8px 10px;margin-bottom:12px;text-align:center;"></p>
     <div class="scroll-form">
       <div class="field"><label>CNPJ / CPF</label><input type="text" id="cli-cnpj" placeholder="Digite para buscar e auto preencher..." onblur="buscarClienteAoDigitar(this.value)"></div>
       <div class="field"><label>Razão Social</label><input type="text" id="cli-razao" placeholder="Razão Social ou Nome Completo"></div>
@@ -316,14 +318,33 @@
       <div class="field"><label>Observações</label><textarea id="cli-obs" rows="3" placeholder="Informações adicionais do pedido..."></textarea></div>
     </div>
     <div style="margin-top:10px;">
-      <button class="btn prim" id="btn-salvar-cli" onclick="confirmarSalvamentoPedido()" style="margin-bottom:8px;">Enviar e Finalizar</button>
+      <button class="btn prim" id="btn-salvar-cli" onclick="confirmarModalClienteRouter()" style="margin-bottom:8px;">Enviar e Finalizar</button>
       <button class="btn" onclick="fecharModalCliente()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="modal-orcamentos" onclick="clicouForaOrcamentos(event)">
+  <div class="modal-box" style="padding:0;max-width:480px;max-height:88vh;display:flex;flex-direction:column;">
+    <div style="padding:18px 20px 14px;border-bottom:1px solid var(--borda);display:flex;justify-content:space-between;align-items:center;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <span style="font-size:20px;">🧾</span>
+        <div>
+          <div style="font-weight:700;color:var(--texto);font-size:15px;">Meus Orçamentos</div>
+          <div style="font-size:11px;color:var(--sub);">Toque em um orçamento para continuar editando</div>
+        </div>
+      </div>
+      <button onclick="fecharModalOrcamentos()" style="background:var(--cinza);border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;color:var(--sub);display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+    <div id="lista-orcamentos" style="flex:1;overflow-y:auto;padding:8px;"></div>
+    <div style="padding:14px 20px;border-top:1px solid var(--borda);flex-shrink:0;background:#fff;">
+      <button class="btn" onclick="fecharModalOrcamentos()" style="margin:0;">Fechar</button>
     </div>
   </div>
 </div>
 
 <div class="toast" id="toast"></div>
 
-<script src="app.js?v=20260722b"></script>
+<script src="app.js?v=20260723"></script>
 </body>
 </html>
