@@ -61,6 +61,25 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 .btn-sync:hover{background:var(--verde);color:#fff;transform:translateY(-1px);box-shadow:var(--sombra-md)}
 .top-actions{margin-left:auto;display:flex;align-items:center;gap:12px;}
 
+/* --- FILTRO POR LINHA DE PRODUTO --- */
+.filtro-linha-wrap{position:relative}
+.btn-filtro-linha{font-weight:700;display:flex;align-items:center;gap:6px}
+.btn-filtro-linha.ativo{background:var(--verde);color:#fff;border-color:var(--verde)}
+.filtro-linha-popup{display:none;position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid var(--borda);border-radius:12px;box-shadow:var(--sombra-lg);padding:14px;z-index:250;width:320px;max-width:90vw}
+.filtro-linha-popup.open{display:block;animation:modal-pop .15s ease}
+.filtro-linha-titulo{font-size:12px;font-weight:700;color:var(--sub);text-transform:uppercase;letter-spacing:.3px;margin-bottom:10px}
+.filtro-linha-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-bottom:12px}
+.chip-linha{padding:8px 6px;border:1.5px solid var(--borda);border-radius:8px;background:var(--cinza);font-size:12px;font-weight:600;color:var(--texto);cursor:pointer;transition:all .12s;text-align:center}
+.chip-linha:hover{border-color:var(--verde);color:var(--verde-dk);background:var(--verde-lt)}
+.chip-linha.ativo{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn-limpar-linha{width:100%;padding:10px;border:none;border-radius:8px;background:var(--promo);color:#fff;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+.btn-limpar-linha:hover{background:#c73c3b;transform:translateY(-1px)}
+
+/* --- BOTÕES DE ÍCONE + TEXTO (topo) --- */
+.icons-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn-icon-label{position:relative;display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px solid var(--borda);border-radius:8px;background:#fff;color:var(--texto);font-size:12.5px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn-icon-label:hover{border-color:var(--verde);color:var(--verde-dk);background:var(--verde-lt);transform:translateY(-1px);box-shadow:var(--sombra-sm)}
+
 /* --- ÍCONE COM BADGE (Meus Orçamentos) --- */
 .btn-icon-badge{position:relative}
 .badge-orc{position:absolute;top:-2px;right:-2px;background:var(--promo);color:#fff;font-size:9px;font-weight:800;min-width:15px;height:15px;border-radius:8px;display:none;align-items:center;justify-content:center;padding:0 3px;line-height:1;box-shadow:0 0 0 2px #fff}
@@ -271,13 +290,20 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
   .filtros-inner{max-width:100%}
   .top-actions{flex-wrap:wrap;width:100%;gap:8px}
   .btn-sync{white-space:normal;text-align:center;flex:1 1 100%}
-  #icons-actions,#cont{flex:0 0 auto}
+  #cont{flex:0 0 auto}
 
   /* Botões de ação principais (Efetuar Pedido / Orçamento) mais altos e fáceis de tocar */
   .btn-group .btn{padding:13px 8px;font-size:12.5px;min-height:46px}
 
-  /* Ícone "Meus Orçamentos" com área de toque confortável */
-  .btn-icon-badge{padding:6px 9px !important;font-size:18px !important}
+  /* Filtro por linha: botão ocupa a largura toda e popup se ajusta à tela */
+  .filtro-linha-wrap{width:100%}
+  .btn-filtro-linha{width:100%;justify-content:center;padding:10px}
+  .filtro-linha-popup{left:0;right:0;width:auto}
+  .filtro-linha-grid{grid-template-columns:repeat(2,1fr)}
+
+  /* Ícones de ação (Edição/Cadastrar/Clientes/Orçamento) em grade 2x2, área de toque confortável */
+  .icons-actions{width:100%;display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .btn-icon-label{width:100%;justify-content:center;padding:10px 8px}
 
   /* Linhas de orçamento com toque confortável */
   .orc-row{padding:13px 10px}
