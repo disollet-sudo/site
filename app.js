@@ -14,6 +14,8 @@ let FRETE_REGRAS = {};
 let CODIGO_REPRE = localStorage.getItem('repre_cod') || "";
 let PRODUTO_MODAL_ATIVO = null;
 let BLOQUEIA_SALVAMENTO_CNPJ = false;
+let MODO_MODAL_CLIENTE = 'pedido'; // 'pedido' ou 'orcamento' — controla o comportamento do modal de dados do cliente
+let ORCAMENTO_ATIVO_ID = null;     // id do orçamento salvo que está sendo editado no carrinho atual (null = nenhum)
 
 // --- CLIENTE ESPECIAL KNE825 ---
 const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
@@ -42,6 +44,7 @@ window.addEventListener('DOMContentLoaded', () => {
     atualizarExibicaoRepre();
   }
   configurarPersistenciaCliente();
+  atualizarBadgeOrcamentos();
   let veioDeSincronizacao = new URLSearchParams(window.location.search).has('_r');
   if (veioDeSincronizacao) {
     // Consome o parâmetro _r e limpa a URL, para que um F5 normal (sem clicar em Sincronizar)
@@ -59,6 +62,7 @@ window.addEventListener('DOMContentLoaded', () => {
 const LS_CARRINHO = 'disolle_carrinho_v1';
 const LS_CLIENTE  = 'disolle_cliente_v1';
 const LS_CONFIG   = 'disolle_config_v1';
+const LS_ORCAMENTOS = 'disolle_orcamentos_v1';
 const CAMPOS_CLIENTE_FORM = ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'];
 let RESTAURANDO_ESTADO = false; // true enquanto restaurarEstadoLocal() está rodando, evita sobrescrever o localStorage com dados vazios pela metade
 
@@ -178,6 +182,7 @@ function iniciarNovoPedido() {
 
   SELECIONADOS = {};
   CLIENTE_ESPECIAL_ATIVO = false;
+  ORCAMENTO_ATIVO_ID = null;
 
   CAMPOS_CLIENTE_FORM.forEach(f => {
     let el = document.getElementById('cli-' + f);
@@ -1101,8 +1106,41 @@ function mostrarFichaCompletaCliente(c) {
 // =============================================
 function abrirFluxoFechamento(t) {
   fecharSheet();
+  configurarModalClienteModo('pedido');
   document.getElementById('modal-cliente').style.display = 'flex';
   document.getElementById('modal-cliente').classList.add('open');
+}
+
+// Abre o mesmo modal de dados do cliente, porém em modo "orçamento":
+// não exige CNPJ/Razão Social e não aplica a regra de pedido mínimo.
+function abrirFluxoOrcamento(t) {
+  if (!DADOS_PDF_PRONTO || DADOS_PDF_PRONTO.itens.length === 0) { alert("Carrinho vazio."); return; }
+  fecharSheet();
+  configurarModalClienteModo('orcamento');
+  document.getElementById('modal-cliente').style.display = 'flex';
+  document.getElementById('modal-cliente').classList.add('open');
+}
+
+function configurarModalClienteModo(modo) {
+  MODO_MODAL_CLIENTE = modo;
+  let titulo = document.getElementById('modal-cliente-titulo');
+  let nota = document.getElementById('modal-cliente-nota');
+  let btn = document.getElementById('btn-salvar-cli');
+  if (modo === 'orcamento') {
+    if (titulo) titulo.innerText = '🧾 SALVAR ORÇAMENTO';
+    if (nota) { nota.style.display = 'block'; nota.innerText = 'Dados do cliente são opcionais aqui. Você pode salvar o orçamento sem cliente e completar depois.'; }
+    if (btn) btn.innerText = '💾 Salvar Orçamento e Baixar PDF';
+  } else {
+    if (titulo) titulo.innerText = '📋 DADOS DO CLIENTE';
+    if (nota) nota.style.display = 'none';
+    if (btn) btn.innerText = 'Enviar e Finalizar';
+  }
+}
+
+// Roteador chamado pelo botão único do modal-cliente
+function confirmarModalClienteRouter() {
+  if (MODO_MODAL_CLIENTE === 'orcamento') confirmarComoOrcamento();
+  else confirmarSalvamentoPedido();
 }
 
 function fecharModalCliente() {
@@ -1164,12 +1202,74 @@ function confirmarSalvamentoPedido() {
         let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
         let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        document.getElementById('modal-sucesso').style.display = 'flex';
-        document.getElementById('modal-sucesso').classList.add('open');
+
+        // Se este pedido veio de um orçamento salvo, remove o orçamento da lista — ele virou pedido.
+        if (ORCAMENTO_ATIVO_ID) {
+          removerOrcamentoLocal(ORCAMENTO_ATIVO_ID);
+          ORCAMENTO_ATIVO_ID = null;
+        }
+
+        mostrarModalSucesso('pedido');
         if (res.driveStatus && res.driveStatus.some(d => !d.ok)) {
           let erros = res.driveStatus.filter(d => !d.ok).map(d => d.erro).join('; ');
           showToast("⚠️ PDF baixado, mas falhou ao salvar no Drive: " + erros);
         }
+      } else { alert("Erro ao processar PDF: " + res.message); }
+    })
+    .catch(() => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      alert("Falha na comunicação geral da transação.");
+    });
+}
+
+// Salva o carrinho atual como ORÇAMENTO: gera e baixa o PDF (igual ao pedido),
+// mas NÃO exige CNPJ/Razão Social, NÃO aplica a regra de pedido mínimo, e NÃO
+// registra o pedido na planilha — apenas fica salvo localmente em "Meus Orçamentos".
+function confirmarComoOrcamento() {
+  let cnpj = document.getElementById('cli-cnpj').value.trim();
+  let razao = document.getElementById('cli-razao').value.trim();
+  let obs = document.getElementById('cli-obs').value.trim();
+
+  let temCliente = !!(cnpj || razao);
+  let strCli = temCliente
+    ? `CNPJ/CPF: ${cnpj}\nRazão Social: ${razao}\nFantasia: ${document.getElementById('cli-fantasia').value}\nTelefone: ${document.getElementById('cli-telefone').value}\nEndereço: ${document.getElementById('cli-endereco').value}\nEstado: ${document.getElementById('cli-estado').value}\nBairro: ${document.getElementById('cli-bairro').value}\nMunicípio: ${document.getElementById('cli-municipio').value}\nNúmero: ${document.getElementById('cli-numero').value}\nCEP: ${document.getElementById('cli-cep').value}\nE-mail: ${document.getElementById('cli-email').value}`
+    : "Orçamento sem cliente vinculado";
+
+  DADOS_PDF_PRONTO.clienteInfo = strCli;
+  DADOS_PDF_PRONTO.observacoes = obs;
+  DADOS_PDF_PRONTO.tipoAcao = 'orcamento';
+  DADOS_PDF_PRONTO.cliente = {
+    cnpj, razao,
+    fantasia: document.getElementById('cli-fantasia').value,
+    telefone: document.getElementById('cli-telefone').value,
+    endereco: document.getElementById('cli-endereco').value,
+    estado: document.getElementById('cli-estado').value,
+    bairro: document.getElementById('cli-bairro').value,
+    municipio: document.getElementById('cli-municipio').value,
+    numero: document.getElementById('cli-numero').value,
+    cep: document.getElementById('cli-cep').value,
+    email: document.getElementById('cli-email').value,
+    obs
+  };
+
+  fecharModalCliente();
+  document.getElementById('loading-modal').style.display = 'flex';
+  document.getElementById('loading-modal').classList.add('open');
+
+  fetch(URL_GOOGLE_SCRIPT, { method: 'POST', body: JSON.stringify({ acao: 'pdf', dadosPdf: DADOS_PDF_PRONTO }) })
+    .then(r => r.json())
+    .then(res => {
+      document.getElementById('loading-modal').classList.remove('open');
+      document.getElementById('loading-modal').style.display = 'none';
+      if (res.status === 'success') {
+        let nomeFinal = res.nomeArquivo || `${CODIGO_REPRE} - Orcamento.pdf`;
+        let href = res.base64.startsWith('data:') ? res.base64 : 'data:application/pdf;base64,' + res.base64;
+        let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+
+        salvarOrcamentoAtualLocal();
+        mostrarModalSucesso('orcamento');
       } else { alert("Erro ao processar PDF: " + res.message); }
     })
     .catch(() => {
@@ -1239,8 +1339,7 @@ function enviarPdfManual() {
       document.getElementById('loading-modal').classList.remove('open');
       document.getElementById('loading-modal').style.display = 'none';
       if (res.status === 'success') {
-        document.getElementById('modal-sucesso').style.display = 'flex';
-        document.getElementById('modal-sucesso').classList.add('open');
+        mostrarModalSucesso('manual');
         fileInput.value = "";
       } else { alert("Erro: " + res.message); }
     }).catch(() => {
@@ -1546,6 +1645,193 @@ async function importarPedidoPdf() {
 function fecharModalImportado() {
   document.getElementById('modal-importado').classList.remove('open');
   setTimeout(() => document.getElementById('modal-importado').style.display = 'none', 300);
+}
+
+// =============================================
+// MODAL DE SUCESSO — texto dinâmico conforme a ação
+// =============================================
+function mostrarModalSucesso(tipo) {
+  let titulo = document.getElementById('modal-sucesso-titulo');
+  let texto = document.getElementById('modal-sucesso-texto');
+  if (tipo === 'orcamento') {
+    if (titulo) titulo.innerText = 'Orçamento Salvo!';
+    if (texto) texto.innerText = 'O PDF foi baixado e o orçamento ficou salvo em "Meus Orçamentos" para você continuar editando quando quiser.';
+  } else if (tipo === 'manual') {
+    if (titulo) titulo.innerText = 'Enviado com Sucesso!';
+    if (texto) texto.innerText = 'O pedido manual em PDF foi enviado para a Di Solle.';
+  } else {
+    if (titulo) titulo.innerText = 'Pedido Enviado!';
+    if (texto) texto.innerText = 'A solicitação foi processada com sucesso.';
+  }
+  document.getElementById('modal-sucesso').style.display = 'flex';
+  document.getElementById('modal-sucesso').classList.add('open');
+}
+
+// =============================================
+// MEUS ORÇAMENTOS — salvar, listar, carregar, excluir (100% local no navegador)
+// =============================================
+function carregarOrcamentosLocal() {
+  try { return JSON.parse(localStorage.getItem(LS_ORCAMENTOS) || '[]'); }
+  catch (e) { return []; }
+}
+
+function salvarOrcamentosListaLocal(lista) {
+  try { localStorage.setItem(LS_ORCAMENTOS, JSON.stringify(lista)); } catch (e) {}
+}
+
+function atualizarBadgeOrcamentos() {
+  let badge = document.getElementById('badge-orcamentos');
+  if (!badge) return;
+  let qtd = carregarOrcamentosLocal().length;
+  badge.innerText = qtd;
+  badge.style.display = qtd > 0 ? 'flex' : 'none';
+}
+
+// Salva (ou atualiza, se ORCAMENTO_ATIVO_ID já existir) o carrinho atual como orçamento
+function salvarOrcamentoAtualLocal() {
+  let lista = carregarOrcamentosLocal();
+
+  let carrinhoSimples = {};
+  Object.keys(SELECIONADOS).forEach(k => { carrinhoSimples[k] = SELECIONADOS[k].qtd; });
+
+  let clienteForm = {};
+  CAMPOS_CLIENTE_FORM.forEach(f => {
+    let el = document.getElementById('cli-' + f);
+    if (el) clienteForm[f] = el.value;
+  });
+
+  let config = {
+    uf: document.getElementById('uf-d').value,
+    prazo: document.getElementById('prazo-d').value,
+    subprazo: document.getElementById('subprazo-d') ? document.getElementById('subprazo-d').value : ''
+  };
+
+  let existente = ORCAMENTO_ATIVO_ID ? lista.find(o => o.id === ORCAMENTO_ATIVO_ID) : null;
+  let id = existente ? existente.id : ('orc_' + Date.now());
+
+  let entry = {
+    id,
+    criadoEm: existente ? existente.criadoEm : new Date().toISOString(),
+    atualizadoEm: new Date().toISOString(),
+    nomeCliente: clienteForm.fantasia || clienteForm.razao || 'Sem cliente vinculado',
+    totalItensCx: Object.values(carrinhoSimples).reduce((a, b) => a + b, 0),
+    totalLiquidoFormatado: DADOS_PDF_PRONTO.contas.liquidoFormatado,
+    carrinho: carrinhoSimples,
+    cliente: clienteForm,
+    config
+  };
+
+  lista = lista.filter(o => o.id !== id);
+  lista.unshift(entry);
+  salvarOrcamentosListaLocal(lista);
+  ORCAMENTO_ATIVO_ID = id;
+  atualizarBadgeOrcamentos();
+}
+
+function removerOrcamentoLocal(id) {
+  let lista = carregarOrcamentosLocal().filter(o => o.id !== id);
+  salvarOrcamentosListaLocal(lista);
+  atualizarBadgeOrcamentos();
+}
+
+function abrirModalOrcamentos() {
+  renderizarListaOrcamentos();
+  document.getElementById('modal-orcamentos').style.display = 'flex';
+  document.getElementById('modal-orcamentos').classList.add('open');
+}
+
+function fecharModalOrcamentos() {
+  document.getElementById('modal-orcamentos').classList.remove('open');
+  setTimeout(() => document.getElementById('modal-orcamentos').style.display = 'none', 300);
+}
+
+function clicouForaOrcamentos(e) { if (e.target === document.getElementById('modal-orcamentos')) fecharModalOrcamentos(); }
+
+function renderizarListaOrcamentos() {
+  let lista = carregarOrcamentosLocal();
+  let container = document.getElementById('lista-orcamentos');
+  if (!container) return;
+
+  if (lista.length === 0) {
+    container.innerHTML = '<div class="vazio">Nenhum orçamento salvo ainda. Monte um carrinho e toque em "Orçamento".</div>';
+    return;
+  }
+
+  container.innerHTML = '';
+  lista.forEach(o => {
+    let dataFmt = new Date(o.atualizadoEm).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    let row = document.createElement('div');
+    row.className = 'orc-row';
+    row.onclick = () => carregarOrcamentoLocal(o.id);
+    row.innerHTML = `
+      <div class="orc-row-info">
+        <span class="orc-row-nome">${o.nomeCliente}</span>
+        <span class="orc-row-meta">${o.totalItensCx} cx · ${o.totalLiquidoFormatado} · ${dataFmt}</span>
+      </div>
+      <button class="orc-row-del" title="Excluir orçamento" onclick="event.stopPropagation(); excluirOrcamentoLocal('${o.id}')">🗑️</button>
+    `;
+    container.appendChild(row);
+  });
+}
+
+function excluirOrcamentoLocal(id) {
+  if (!confirm("Excluir este orçamento salvo? Essa ação não pode ser desfeita.")) return;
+  removerOrcamentoLocal(id);
+  if (ORCAMENTO_ATIVO_ID === id) ORCAMENTO_ATIVO_ID = null;
+  renderizarListaOrcamentos();
+  showToast("🗑️ Orçamento excluído.");
+}
+
+function carregarOrcamentoLocal(id) {
+  let lista = carregarOrcamentosLocal();
+  let o = lista.find(x => x.id === id);
+  if (!o) return;
+
+  let temCarrinhoAtual = Object.keys(SELECIONADOS).length > 0;
+  if (temCarrinhoAtual && ORCAMENTO_ATIVO_ID !== id) {
+    if (!confirm("Isso vai substituir o carrinho atual pelos itens deste orçamento. Deseja continuar?")) return;
+  }
+
+  // Restaura carrinho
+  SELECIONADOS = {};
+  Object.keys(o.carrinho).forEach(cod => {
+    let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === cod);
+    if (prod) SELECIONADOS[cod] = { produto: prod, qtd: o.carrinho[cod] };
+  });
+
+  // Restaura dados do cliente
+  CAMPOS_CLIENTE_FORM.forEach(f => {
+    let el = document.getElementById('cli-' + f);
+    if (el) el.value = (o.cliente && o.cliente[f]) ? o.cliente[f] : '';
+  });
+  salvarClienteLocal();
+  if (o.cliente && o.cliente.cnpj) ativarClienteKNE825(o.cliente.cnpj);
+
+  // Restaura UF / prazo
+  if (o.config) {
+    if (o.config.uf) {
+      document.getElementById('uf-d').value = o.config.uf;
+      document.getElementById('uf-m').value = o.config.uf;
+    }
+    if (o.config.prazo) {
+      document.getElementById('prazo-d').value = o.config.prazo;
+      document.getElementById('prazo-m').value = o.config.prazo;
+      alterouPrazoBase('prazo-d', 'prazo-m');
+      if (o.config.subprazo) {
+        setTimeout(() => {
+          ['subprazo-d', 'subprazo-m'].forEach(idSel => {
+            let sel = document.getElementById(idSel);
+            if (sel) sel.value = o.config.subprazo;
+          });
+        }, 50);
+      }
+    }
+  }
+
+  ORCAMENTO_ATIVO_ID = id;
+  calcularTudo();
+  fecharModalOrcamentos();
+  showToast(`🧾 Orçamento de "${o.nomeCliente}" carregado. Edite os itens e finalize quando quiser.`);
 }
 
 // =============================================
