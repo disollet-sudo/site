@@ -400,8 +400,10 @@ function filtrar() {
 
 function executarFiltro() {
   let b = document.getElementById('busca').value;
-  let promo = document.getElementById('fil-promo').value;
-  let pMax = parseFloat(document.getElementById('fil-preco').value) || 0;
+  let elPromo = document.getElementById('fil-promo');
+  let elPreco = document.getElementById('fil-preco');
+  let promo = elPromo ? elPromo.value : '';
+  let pMax = elPreco ? (parseFloat(elPreco.value) || 0) : 0;
 
   // Calcula a tabela ativa da mesma forma que o modal e renderizar()
   let uf = document.getElementById('uf-d').value;
@@ -421,6 +423,7 @@ function executarFiltro() {
     let mat = buscaInteligente([p.codigo, p.descricao, p.codigoEan], b);
     if (promo === 'sim' && !p.emPromocao) mat = false;
     if (pMax > 0 && preco > pMax) mat = false;
+    if (FILTRO_LINHA_ATIVO && !(p.codigo || '').trim().startsWith(FILTRO_LINHA_ATIVO)) mat = false;
     return mat;
   });
   renderizar(f);
@@ -428,10 +431,83 @@ function executarFiltro() {
 
 function limFiltros() {
   document.getElementById('busca').value = '';
-  document.getElementById('fil-promo').value = '';
-  document.getElementById('fil-preco').value = '';
+  let elPromo = document.getElementById('fil-promo');
+  let elPreco = document.getElementById('fil-preco');
+  if (elPromo) elPromo.value = '';
+  if (elPreco) elPreco.value = '';
+  limparFiltroLinha();
+}
+
+// =============================================
+// FILTRO POR LINHA DE PRODUTO (2 primeiros dígitos do código)
+// =============================================
+const LINHAS_PRODUTO = [
+  { nome: 'Paraty',     prefixo: '01' },
+  { nome: 'Tradição',   prefixo: '06' },
+  { nome: 'Clean',      prefixo: '07' },
+  { nome: 'Utilidade',  prefixo: '07' },
+  { nome: 'Sollewood',  prefixo: '08' },
+  { nome: 'Classica',   prefixo: '10' },
+  { nome: 'Millenium',  prefixo: '14' },
+  { nome: 'Durafio',    prefixo: '18' },
+  { nome: 'Oceano',     prefixo: '27' },
+  { nome: 'Universo',   prefixo: '33' },
+  { nome: 'Prisma',     prefixo: '35' },
+  { nome: 'Inova',      prefixo: '38' }
+];
+let FILTRO_LINHA_ATIVO = null; // prefixo de 2 dígitos ativo, ou null
+
+function montarGridFiltroLinha() {
+  let grid = document.getElementById('filtro-linha-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  LINHAS_PRODUTO.forEach(l => {
+    let btn = document.createElement('button');
+    btn.className = 'chip-linha';
+    btn.dataset.prefixo = l.prefixo;
+    btn.innerText = l.nome;
+    if (FILTRO_LINHA_ATIVO === l.prefixo) btn.classList.add('ativo');
+    btn.onclick = () => aplicarFiltroLinha(l.prefixo, l.nome);
+    grid.appendChild(btn);
+  });
+}
+
+function toggleFiltroLinhaPopup() {
+  let popup = document.getElementById('filtro-linha-popup');
+  if (!popup) return;
+  let vaiAbrir = !popup.classList.contains('open');
+  if (vaiAbrir) { montarGridFiltroLinha(); popup.classList.add('open'); }
+  else { popup.classList.remove('open'); }
+}
+
+function aplicarFiltroLinha(prefixo, nome) {
+  FILTRO_LINHA_ATIVO = prefixo;
+  let label = document.getElementById('filtro-linha-label');
+  if (label) label.innerText = nome;
+  let btn = document.getElementById('btn-filtro-linha');
+  if (btn) btn.classList.add('ativo');
+  document.getElementById('filtro-linha-popup').classList.remove('open');
   filtrar();
 }
+
+function limparFiltroLinha() {
+  FILTRO_LINHA_ATIVO = null;
+  let label = document.getElementById('filtro-linha-label');
+  if (label) label.innerText = 'Filtro por Linha';
+  let btn = document.getElementById('btn-filtro-linha');
+  if (btn) btn.classList.remove('ativo');
+  montarGridFiltroLinha();
+  filtrar();
+}
+
+// Fecha o popup de filtro por linha ao clicar fora dele
+document.addEventListener('click', (e) => {
+  let popup = document.getElementById('filtro-linha-popup');
+  let btn = document.getElementById('btn-filtro-linha');
+  if (!popup || !popup.classList.contains('open')) return;
+  if (popup.contains(e.target) || (btn && btn.contains(e.target))) return;
+  popup.classList.remove('open');
+});
 
 function somarBrutoPrevia() {
   // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
