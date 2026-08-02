@@ -183,9 +183,9 @@ header{background:#000;border-bottom:1px solid #222;padding:12px 20px;position:s
 .sh-footer{flex-shrink:0;padding:14px 16px 24px;border-top:1px solid var(--borda);background:var(--branco);}
 
 /* --- MODAIS --- */
-.loading-inicial{position:fixed;inset:0;background:#fff;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;transition:opacity .3s ease}
+.loading-inicial{position:fixed;inset:0;background:transparent;pointer-events:none;z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;transition:opacity .3s ease}
 .loading-inicial.fechando{opacity:0}
-.loading-inicial-box{max-width:320px;width:100%;text-align:center}
+.loading-inicial-box{max-width:320px;width:100%;text-align:center;background:var(--branco);border-radius:16px;padding:26px 22px;box-shadow:var(--sombra-lg);animation:modal-pop .18s ease;pointer-events:auto}
 .loading-inicial-logo{width:64px;height:64px;object-fit:contain;margin-bottom:14px;border-radius:12px;box-shadow:var(--sombra-sm)}
 .loading-inicial-spin{width:34px;height:34px;border:3px solid #ddd;border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 16px}
 .loading-inicial-titulo{font-weight:800;color:var(--verde-dk);font-size:17px;margin-bottom:4px}
