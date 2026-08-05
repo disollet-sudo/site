@@ -22,6 +22,12 @@ const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
 let TABELA_KNE825 = {};                         // { codNorm: precoUnit } vindo do GS
 let CLIENTE_ESPECIAL_ATIVO = false;             // true quando KNE825 selecionado + prazo 28 dias
 
+// --- TABELA ESPECIAL MILLENIUM / PRISMA ---
+// { codNorm: { icms7, icms12, minimo7, minimo12, refCodigo, permitidos: {"14":true,...}, overrides: {"14":valor,...} } }
+let TABELA_MILLENIUM = {};
+// Mapa código-de-prazo (mesmo valor usado no <select id="prazo-d">) -> percentual de desconto
+const PERCENTUAIS_PRAZO = { '14': 14, '9': 9, '7': 7, '5': 5, '2': 2, '0': 0 };
+
 // Tabela de prazos e opções de desmembramento
 const SUB_PRAZOS = {
   "9": ["28 DIAS","14/42 DIAS","21/35 DIAS","14/28/42 DIAS"],
@@ -306,11 +312,59 @@ function getPrecoEspecialKNE825(produto) {
   return (preco !== undefined && preco > 0) ? preco : null;
 }
 
+// =============================================
+// TABELA ESPECIAL MILLENIUM / PRISMA
+// Prioridade dentro do preço especial: valor fixo (override) da coluna do prazo (antecipado/42/63)
+// > cálculo por percentual (checkbox habilitado + preço base icms7/icms12) > (não se aplica, cai
+// pro preço normal / promoção).
+// =============================================
+function getPrecoEspecialMillenium(produto, icmsBase, prazoBaseSelecionado) {
+  let codNorm = produto.codigo.toLowerCase().trim();
+  let entry = TABELA_MILLENIUM[codNorm];
+  if (!entry) return null;
+
+  // Pedido mínimo específico da classe de ICMS em uso (se configurado na planilha)
+  let minimoAplicavel = icmsBase === '12' ? entry.minimo12 : entry.minimo7;
+  if (minimoAplicavel > 0 && somarBrutoPrevia() < minimoAplicavel) return null;
+
+  // 1) Valor fixo (override): se a coluna do prazo (Antecipado / 42 dias / 63 dias) tiver
+  // um número preenchido pra essa linha, esse é o preço final — sem cálculo.
+  if (entry.overrides && entry.overrides[prazoBaseSelecionado] > 0) {
+    return entry.overrides[prazoBaseSelecionado];
+  }
+
+  // 2) Sem override: calcula a partir do preço base (icms7/icms12) + desconto do prazo,
+  // só se esse prazo estiver habilitado (checkbox preenchido ou é o próprio termo de referência).
+  if (!entry.permitidos || !entry.permitidos[prazoBaseSelecionado]) return null;
+
+  let precoBase = icmsBase === '12' ? entry.icms12 : entry.icms7;
+  if (!precoBase || precoBase <= 0) return null;
+
+  let pctRef = 1;
+  if (entry.refCodigo && PERCENTUAIS_PRAZO[entry.refCodigo] !== undefined) {
+    pctRef = (100 - PERCENTUAIS_PRAZO[entry.refCodigo]) / 100;
+  }
+  if (pctRef <= 0) return null;
+  let precoBruto0pct = precoBase / pctRef;
+
+  let pctSelecionado = (100 - (PERCENTUAIS_PRAZO[prazoBaseSelecionado] !== undefined ? PERCENTUAIS_PRAZO[prazoBaseSelecionado] : 0)) / 100;
+  return precoBruto0pct * pctSelecionado;
+}
+
 function getPrecoFinal(produto, tabelaNormal) {
+  // Prioridade 1: cliente especial KNE825
   if (CLIENTE_ESPECIAL_ATIVO) {
     let esp = getPrecoEspecialKNE825(produto);
     if (esp !== null) return esp;
   }
+
+  // Prioridade 2: tabela especial Millenium / Prisma
+  let prazoBaseAtual = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
+  let icmsBaseAtual = tabelaNormal.indexOf('M2607') === 0 ? '7' : '12';
+  let mil = getPrecoEspecialMillenium(produto, icmsBaseAtual, prazoBaseAtual);
+  if (mil !== null) return mil;
+
+  // Prioridade 3: promoção normal, senão preço da tabela padrão
   return produto.emPromocao ? (produto.precosPromo[tabelaNormal] || 0) : (produto.precos[tabelaNormal] || 0);
 }
 
@@ -343,6 +397,7 @@ async function carregarDados(force = false) {
     FRETE_REGRAS = d.freteRegras || {};
     CLIENTES = d.clientes || [];
     TABELA_KNE825 = d.tabelaKNE825 || {};
+    TABELA_MILLENIUM = d.tabelaMillenium || {};
 
     let ufs = d.estados || Object.keys(FRETE_REGRAS);
     let ufd = document.getElementById('uf-d'), ufm = document.getElementById('uf-m');
