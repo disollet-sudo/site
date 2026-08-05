@@ -1,6 +1,5 @@
 /* =============================================
    Di Solle — Lógica Principal do App
-   Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
 const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwruSrru-2iY14DFId9t3dkUlJKLTta0O45Y2ELO_hOTQSKEv_0rBlk78lSgV10kKa6-g/exec";
@@ -23,9 +22,7 @@ let TABELA_KNE825 = {};                         // { codNorm: precoUnit } vindo 
 let CLIENTE_ESPECIAL_ATIVO = false;             // true quando KNE825 selecionado + prazo 28 dias
 
 // --- TABELA ESPECIAL MILLENIUM / PRISMA ---
-// { codNorm: { icms7, icms12, minimo7, minimo12, refCodigo, permitidos: {"14":true,...}, overrides: {"14":valor,...} } }
 let TABELA_MILLENIUM = {};
-// Mapa código-de-prazo (mesmo valor usado no <select id="prazo-d">) -> percentual de desconto
 const PERCENTUAIS_PRAZO = { '14': 14, '9': 9, '7': 7, '5': 5, '2': 2, '0': 0 };
 
 // Tabela de prazos e opções de desmembramento
@@ -38,11 +35,11 @@ const SUB_PRAZOS = {
 };
 
 // =============================================
-// POPUP DE CARREGAMENTO INICIAL (com barra de progresso e tempo restante)
+// POPUP DE CARREGAMENTO INICIAL
 // =============================================
 let LOADING_INICIAL_START = null;
 let LOADING_INICIAL_INTERVAL = null;
-const LOADING_INICIAL_DURACAO_ESTIMADA = 6000; // ms — tempo médio estimado para os itens aparecerem
+const LOADING_INICIAL_DURACAO_ESTIMADA = 6000;
 
 function iniciarLoadingInicial() {
   const overlay = document.getElementById('loading-inicial');
@@ -60,8 +57,6 @@ function atualizarProgressoLoadingInicial() {
   const pct = document.getElementById('loading-inicial-pct');
   const tempo = document.getElementById('loading-inicial-tempo');
   let decorrido = Date.now() - LOADING_INICIAL_START;
-  // Progresso simulado: sobe rápido no início e desacelera, sem passar de 92% sozinho
-  // (os últimos % só completam quando os dados realmente chegam)
   let fracao = decorrido / LOADING_INICIAL_DURACAO_ESTIMADA;
   let progresso = 92 * (1 - Math.exp(-fracao * 2.2));
   if (progresso > 92) progresso = 92;
@@ -104,8 +99,6 @@ window.addEventListener('DOMContentLoaded', () => {
   atualizarBadgeOrcamentos();
   let veioDeSincronizacao = new URLSearchParams(window.location.search).has('_r');
   if (veioDeSincronizacao) {
-    // Consome o parâmetro _r e limpa a URL, para que um F5 normal (sem clicar em Sincronizar)
-    // não force esse resync pesado de novo.
     let urlLimpa = new URL(window.location.href);
     urlLimpa.searchParams.delete('_r');
     window.history.replaceState({}, '', urlLimpa.toString());
@@ -114,20 +107,28 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // =============================================
-// PERSISTÊNCIA LOCAL — carrinho e pedido sobrevivem a um recarregamento (F5)
+// PERSISTÊNCIA LOCAL
 // =============================================
 const LS_CARRINHO = 'disolle_carrinho_v1';
 const LS_CLIENTE  = 'disolle_cliente_v1';
 const LS_CONFIG   = 'disolle_config_v1';
 const LS_ORCAMENTOS = 'disolle_orcamentos_v1';
 const CAMPOS_CLIENTE_FORM = ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'];
-let RESTAURANDO_ESTADO = false; // true enquanto restaurarEstadoLocal() está rodando, evita sobrescrever o localStorage com dados vazios pela metade
+let RESTAURANDO_ESTADO = false;
 
 function configurarPersistenciaCliente() {
   CAMPOS_CLIENTE_FORM.forEach(f => {
     let el = document.getElementById('cli-' + f);
     if (el) el.addEventListener('input', salvarClienteLocal);
   });
+  // ATUALIZAÇÃO: Ao digitar/trocar o CNPJ, revalida e sincroniza o modo especial KNE825
+  let elCnpj = document.getElementById('cli-cnpj');
+  if (elCnpj) {
+    elCnpj.addEventListener('input', () => {
+      verificarModoEspecial();
+      calcularTudo();
+    });
+  }
 }
 
 function salvarCarrinhoLocal() {
@@ -166,7 +167,6 @@ function salvarConfigLocal() {
 function restaurarEstadoLocal() {
   RESTAURANDO_ESTADO = true;
 
-  // 1) Restaura UF e prazo (precisa vir antes do carrinho para os preços baterem)
   try {
     let cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null');
     if (cfg) {
@@ -190,7 +190,6 @@ function restaurarEstadoLocal() {
     }
   } catch (e) {}
 
-  // 2) Restaura dados do cliente digitados
   try {
     let cli = JSON.parse(localStorage.getItem(LS_CLIENTE) || 'null');
     if (cli) {
@@ -202,7 +201,6 @@ function restaurarEstadoLocal() {
     }
   } catch (e) {}
 
-  // 3) Restaura o carrinho (depende do catálogo já carregado em PRODUTOS)
   try {
     let carr = JSON.parse(localStorage.getItem(LS_CARRINHO) || 'null');
     if (carr && Object.keys(carr).length > 0) {
@@ -227,9 +225,6 @@ function limparEstadoLocal() {
   } catch (e) {}
 }
 
-// =============================================
-// NOVO PEDIDO — zera tudo para começar um pedido do zero
-// =============================================
 function iniciarNovoPedido() {
   let temCarrinho = Object.keys(SELECIONADOS).length > 0;
   let temCliente = document.getElementById('cli-cnpj') && document.getElementById('cli-cnpj').value.trim() !== '';
@@ -298,7 +293,7 @@ function formatDin(v) {
 }
 
 // =============================================
-// CLIENTE ESPECIAL KNE825
+// CLIENTE ESPECIAL KNE825 E MILLENIUM
 // =============================================
 function getPrecoEspecialKNE825(produto) {
   let codNorm = produto.codigo.toLowerCase().trim();
@@ -312,29 +307,18 @@ function getPrecoEspecialKNE825(produto) {
   return (preco !== undefined && preco > 0) ? preco : null;
 }
 
-// =============================================
-// TABELA ESPECIAL MILLENIUM / PRISMA
-// Prioridade dentro do preço especial: valor fixo (override) da coluna do prazo (antecipado/42/63)
-// > cálculo por percentual (checkbox habilitado + preço base icms7/icms12) > (não se aplica, cai
-// pro preço normal / promoção).
-// =============================================
 function getPrecoEspecialMillenium(produto, icmsBase, prazoBaseSelecionado) {
   let codNorm = produto.codigo.toLowerCase().trim();
   let entry = TABELA_MILLENIUM[codNorm];
   if (!entry) return null;
 
-  // Pedido mínimo específico da classe de ICMS em uso (se configurado na planilha)
   let minimoAplicavel = icmsBase === '12' ? entry.minimo12 : entry.minimo7;
   if (minimoAplicavel > 0 && somarBrutoPrevia() < minimoAplicavel) return null;
 
-  // 1) Valor fixo (override): se a coluna do prazo (Antecipado / 42 dias / 63 dias) tiver
-  // um número preenchido pra essa linha, esse é o preço final — sem cálculo.
   if (entry.overrides && entry.overrides[prazoBaseSelecionado] > 0) {
     return entry.overrides[prazoBaseSelecionado];
   }
 
-  // 2) Sem override: calcula a partir do preço base (icms7/icms12) + desconto do prazo,
-  // só se esse prazo estiver habilitado (checkbox preenchido ou é o próprio termo de referência).
   if (!entry.permitidos || !entry.permitidos[prazoBaseSelecionado]) return null;
 
   let precoBase = icmsBase === '12' ? entry.icms12 : entry.icms7;
@@ -369,7 +353,6 @@ function getPrecoFinal(produto, tabelaNormal) {
 }
 
 function verificarModoEspecial() {
-  // Ativa somente se CNPJ do cliente = KNE825 E prazo = 28 dias (valor "9")
   let cnpjAtual = (document.getElementById('cli-cnpj') ? document.getElementById('cli-cnpj').value : '').replace(/\D/g,'');
   let prazo = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
   CLIENTE_ESPECIAL_ATIVO = (cnpjAtual === CNPJ_KNE825 && prazo === '9' && Object.keys(TABELA_KNE825).length > 0);
@@ -415,30 +398,25 @@ async function carregarDados(force = false) {
 
 function sincronizarPlanilha() {
   document.getElementById('btn-sync').innerText = "Sincronizando...";
-  // Garante que o carrinho/dados atuais estão salvos antes de recarregar
   salvarCarrinhoLocal();
   salvarClienteLocal();
   salvarConfigLocal();
-  // Força o navegador a buscar TODOS os arquivos de novo (index.html, app.js, estilo.css),
-  // ignorando cache antigo. O carrinho volta sozinho pois foi salvo no localStorage acima.
   let url = new URL(window.location.href);
   url.searchParams.set('_r', Date.now());
   window.location.href = url.toString();
 }
 
 // =============================================
-// BUSCA INTELIGENTE (multi-palavra, sem acento, em qualquer ordem)
+// BUSCA INTELIGENTE
 // =============================================
 function normalizarTexto(txt) {
   return (txt || '')
     .toString()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .trim();
 }
 
-// Distância de Levenshtein (nº mínimo de edições para transformar 'a' em 'b')
-// Usada para tolerar erros de digitação/grafia na base (ex: MILLENIUM x MILLENIUN)
 function distanciaLevenshtein(a, b) {
   let m = a.length, n = b.length;
   if (m === 0) return n;
@@ -451,9 +429,9 @@ function distanciaLevenshtein(a, b) {
     for (let j = 1; j <= n; j++) {
       let custo = a[i - 1] === b[j - 1] ? 0 : 1;
       linhaAtual[j] = Math.min(
-        linhaAnterior[j] + 1,      // remoção
-        linhaAtual[j - 1] + 1,     // inserção
-        linhaAnterior[j - 1] + custo // substituição
+        linhaAnterior[j] + 1,
+        linhaAtual[j - 1] + 1,
+        linhaAnterior[j - 1] + custo
       );
     }
     [linhaAnterior, linhaAtual] = [linhaAtual, linhaAnterior];
@@ -461,18 +439,13 @@ function distanciaLevenshtein(a, b) {
   return linhaAnterior[n];
 }
 
-// Tolerância de erro permitida conforme o tamanho da palavra digitada
 function toleranciaPara(tamanho) {
-  if (tamanho <= 3) return 0;  // palavras muito curtas: precisa ser exata
+  if (tamanho <= 3) return 0;
   if (tamanho <= 5) return 1;
   if (tamanho <= 9) return 2;
   return 3;
 }
 
-// Retorna true se TODAS as palavras digitadas aparecerem (em qualquer ordem)
-// em algum dos campos informados — mesmo com pequenos erros de digitação/grafia
-// na base (ex: "millenium" encontra "MILLENIUN"). Ex: "millenium faca" casa com
-// "FACA CHURRASCO MILLENIUM INOX" mesmo não estando na mesma ordem/adjacência.
 function buscaInteligente(campos, termo) {
   let termoNorm = normalizarTexto(termo);
   if (!termoNorm) return true;
@@ -480,16 +453,13 @@ function buscaInteligente(campos, termo) {
   let textoCompleto = normalizarTexto(campos.filter(Boolean).join(' '));
 
   return tokens.every(tok => {
-    // Caminho rápido: substring exata (cobre código, EAN e a maioria das buscas)
     if (textoCompleto.includes(tok)) return true;
-
-    // Caminho tolerante a erro: compara com cada palavra do texto
     let tolerancia = toleranciaPara(tok.length);
     if (tolerancia === 0) return false;
     let palavras = textoCompleto.split(/\s+/);
     return palavras.some(p => {
-      if (Math.abs(p.length - tok.length) > tolerancia) return false; // descarta rápido
-      if (p[0] !== tok[0]) return false; // 1ª letra costuma estar certa; acelera muito
+      if (Math.abs(p.length - tok.length) > tolerancia) return false;
+      if (p[0] !== tok[0]) return false;
       return distanciaLevenshtein(tok, p) <= tolerancia;
     });
   });
@@ -511,7 +481,6 @@ function executarFiltro() {
   let promo = elPromo ? elPromo.value : '';
   let pMax = elPreco ? (parseFloat(elPreco.value) || 0) : 0;
 
-  // Calcula a tabela ativa da mesma forma que o modal e renderizar()
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
@@ -545,7 +514,7 @@ function limFiltros() {
 }
 
 // =============================================
-// FILTRO POR LINHA DE PRODUTO (2 primeiros dígitos do código)
+// FILTRO POR LINHA DE PRODUTO
 // =============================================
 const LINHAS_PRODUTO = [
   { nome: 'Paraty',     prefixo: '01' },
@@ -561,7 +530,7 @@ const LINHAS_PRODUTO = [
   { nome: 'Prisma',     prefixo: '35' },
   { nome: 'Inova',      prefixo: '38' }
 ];
-let FILTRO_LINHA_ATIVO = null; // prefixo de 2 dígitos ativo, ou null
+let FILTRO_LINHA_ATIVO = null;
 
 function montarGridFiltroLinha() {
   let grid = document.getElementById('filtro-linha-grid');
@@ -606,7 +575,6 @@ function limparFiltroLinha() {
   filtrar();
 }
 
-// Fecha o popup de filtro por linha ao clicar fora dele
 document.addEventListener('click', (e) => {
   let popup = document.getElementById('filtro-linha-popup');
   let btn = document.getElementById('btn-filtro-linha');
@@ -616,8 +584,6 @@ document.addEventListener('click', (e) => {
 });
 
 function somarBrutoPrevia() {
-  // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
-  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
@@ -738,8 +704,8 @@ function confirmarAddModal() {
 // =============================================
 function limSel() { 
   SELECIONADOS = {}; 
+  CLIENTE_ESPECIAL_ATIVO = false; // ATUALIZAÇÃO: Garante o reset explícito da flag KNE825 ao limpar
   calcularTudo(); 
-  // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
@@ -747,11 +713,7 @@ function limSel() {
   limparEstadoLocal();
 }
 
-// =============================================
-// CARRINHO — RENDERIZAÇÃO INDEPENDENTE
-// =============================================
 function renderizarCarrinho(tabelaAtiva) {
-  // Recalcula tabelaAtiva se não fornecida
   if (!tabelaAtiva) {
     let uf = document.getElementById('uf-d').value;
     let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
@@ -769,7 +731,6 @@ function renderizarCarrinho(tabelaAtiva) {
   let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
   let pctPrazo = (100 - prazoBase) / 100;
 
-  // Guarda a posição de scroll antes de limpar
   let scrollTop = hd.scrollTop;
   hd.innerHTML = '';
 
@@ -792,7 +753,6 @@ function renderizarCarrinho(tabelaAtiva) {
     let div = document.createElement('div');
     div.className = 'cart-item';
 
-    // Miniatura
     let imgEl = document.createElement('div');
     imgEl.className = 'cart-item-img';
     if (p.fileId) {
@@ -805,7 +765,6 @@ function renderizarCarrinho(tabelaAtiva) {
       imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
     }
 
-    // Info
     let infoEl = document.createElement('div');
     infoEl.className = 'cart-item-info';
     infoEl.innerHTML = `
@@ -814,7 +773,6 @@ function renderizarCarrinho(tabelaAtiva) {
       <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
     `;
 
-    // Controle de quantidade — usando addEventListener, não onclick inline
     let ctrlEl = document.createElement('div');
     ctrlEl.className = 'cart-qty-ctrl';
     ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
@@ -883,7 +841,6 @@ function renderizarCarrinho(tabelaAtiva) {
     ctrlEl.appendChild(inputQty);
     ctrlEl.appendChild(btnMais);
 
-    // Botão remover
     let rmBtn = document.createElement('button');
     rmBtn.className = 'cart-rm-btn';
     rmBtn.title = 'Remover';
@@ -895,7 +852,6 @@ function renderizarCarrinho(tabelaAtiva) {
 
     div.appendChild(imgEl);
 
-    // Wrapper direito: info + controles + botão remover
     let rightEl = document.createElement('div');
     rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
 
@@ -911,7 +867,6 @@ function renderizarCarrinho(tabelaAtiva) {
     hd.appendChild(div);
   });
 
-  // Restaura scroll
   hd.scrollTop = scrollTop;
 
   let rh = document.getElementById('cart-header-resumo');
@@ -971,6 +926,7 @@ function calcularTotalLiquidoComTabela(tabela, pctPrazo, uf) {
 }
 
 function calcularTudo() {
+  verificarModoEspecial(); // ATUALIZAÇÃO: Garante sincronização constante do modo KNE825 com o CNPJ/prazo atual
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
   let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
@@ -1015,7 +971,6 @@ function calcularTudo() {
     });
   });
 
-  // Renderiza o carrinho separadamente
   renderizarCarrinho(tabelaAtiva);
 
   document.getElementById('badge').innerText = `${contItens} itens`;
@@ -1054,7 +1009,6 @@ function calcularTudo() {
       valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
-    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
     layoutAjustes: {
       colunaFotoLarguraAumento: 1.50,
       colunaDescricaoMenor: true,
@@ -1064,7 +1018,6 @@ function calcularTudo() {
 
   const upd = (prefix) => {
     document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
-    // Subtotal exibe o valor já com desconto do prazo aplicado
     document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
     document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
     document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
@@ -1076,7 +1029,6 @@ function calcularTudo() {
     document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
   };
   upd('rd'); upd('rm');
-  // Rerenderiza os cards para atualizar preços conforme tabela/estado
   filtrar();
 
   let mb = document.getElementById('mb-info');
@@ -1293,8 +1245,6 @@ function abrirFluxoFechamento(t) {
   document.getElementById('modal-cliente').classList.add('open');
 }
 
-// Abre o mesmo modal de dados do cliente, porém em modo "orçamento":
-// não exige CNPJ/Razão Social e não aplica a regra de pedido mínimo.
 function abrirFluxoOrcamento(t) {
   if (!DADOS_PDF_PRONTO || DADOS_PDF_PRONTO.itens.length === 0) { alert("Carrinho vazio."); return; }
   fecharSheet();
@@ -1319,7 +1269,6 @@ function configurarModalClienteModo(modo) {
   }
 }
 
-// Roteador chamado pelo botão único do modal-cliente
 function confirmarModalClienteRouter() {
   if (MODO_MODAL_CLIENTE === 'orcamento') confirmarComoOrcamento();
   else confirmarSalvamentoPedido();
@@ -1385,7 +1334,6 @@ function confirmarSalvamentoPedido() {
         let a = document.createElement('a'); a.href = href; a.download = nomeFinal;
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
 
-        // Se este pedido veio de um orçamento salvo, remove o orçamento da lista — ele virou pedido.
         if (ORCAMENTO_ATIVO_ID) {
           removerOrcamentoLocal(ORCAMENTO_ATIVO_ID);
           ORCAMENTO_ATIVO_ID = null;
@@ -1405,9 +1353,6 @@ function confirmarSalvamentoPedido() {
     });
 }
 
-// Salva o carrinho atual como ORÇAMENTO: gera e baixa o PDF (igual ao pedido),
-// mas NÃO exige CNPJ/Razão Social, NÃO aplica a regra de pedido mínimo, e NÃO
-// registra o pedido na planilha — apenas fica salvo localmente em "Meus Orçamentos".
 function confirmarComoOrcamento() {
   let cnpj = document.getElementById('cli-cnpj').value.trim();
   let razao = document.getElementById('cli-razao').value.trim();
@@ -1534,11 +1479,8 @@ function enviarPdfManual() {
 }
 
 // =============================================
-// IMPORTAR PEDIDO VIA PDF (EDITAR PEDIDO)
-// Usa PDF.js localmente — sem API, sem custo
+// IMPORTAR PEDIDO VIA PDF
 // =============================================
-
-// Carrega PDF.js sob demanda (só quando precisar)
 function carregarPdfJs() {
   return new Promise((resolve, reject) => {
     if (window.pdfjsLib) { resolve(); return; }
@@ -1554,7 +1496,6 @@ function carregarPdfJs() {
   });
 }
 
-// Extrai todo o texto do PDF página a página
 async function extrairTextoPdf(file) {
   let arrayBuffer = await file.arrayBuffer();
   let pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -1562,7 +1503,6 @@ async function extrairTextoPdf(file) {
   for (let i = 1; i <= pdf.numPages; i++) {
     let page = await pdf.getPage(i);
     let content = await page.getTextContent();
-    // Reconstrói linhas usando posição Y para detectar quebras reais
     let ultimoY = null;
     let linhaAtual = '';
     content.items.forEach(it => {
@@ -1580,7 +1520,6 @@ async function extrairTextoPdf(file) {
   return textoTotal;
 }
 
-// Parseia o texto extraído do PDF di solle para dados estruturados
 function parsearPedidoDiSolle(texto) {
   let resultado = {
     cliente: { cnpj:'', razao:'', fantasia:'', telefone:'', endereco:'',
@@ -1590,78 +1529,59 @@ function parsearPedidoDiSolle(texto) {
     itens: []
   };
 
-  // Normaliza espaços múltiplos
   let t = texto.replace(/\s+/g, ' ');
 
-  // ---- DADOS DO CLIENTE ----
   let campo = (label, proxLabels) => {
     let pattern = label + '\\s*[:\\-]?\\s*([\\s\\S]+?)(?=' + proxLabels + '|$)';
     let m = t.match(new RegExp(pattern, 'i'));
     return m ? m[1].trim().replace(/\s+/g, ' ') : '';
   };
 
-  // CNPJ
   let cnpjM = t.match(/CNPJ[\s\/CPF]*[:\-]?\s*([\d.\-\/]+)/i);
   resultado.cliente.cnpj = cnpjM ? cnpjM[1].trim() : '';
 
-  // Razão Social
   let razaoM = t.match(/Raz[aã]o Social[:\-]?\s*([^\n]+?)(?=Fantasia|Telefone|Endere)/i);
   resultado.cliente.razao = razaoM ? razaoM[1].trim() : '';
 
-  // Fantasia
   let fantasiaM = t.match(/Fantasia[:\-]?\s*([^\n]+?)(?=Telefone|Endere|CNPJ|$)/i);
   resultado.cliente.fantasia = fantasiaM ? fantasiaM[1].trim() : '';
 
-  // Telefone
   let telM = t.match(/Telefone[:\-]?\s*([\d\s\(\)\-]+?)(?=Endere|Estado|Bairro|CEP|$)/i);
   resultado.cliente.telefone = telM ? telM[1].trim() : '';
 
-  // Endereço
   let endM = t.match(/Endere[çc]o[:\-]?\s*([^\n]+?)(?=Estado|Bairro|Munic|N[uú]mero|CEP|$)/i);
   resultado.cliente.endereco = endM ? endM[1].trim() : '';
 
-  // Estado
   let estadoM = t.match(/Estado[:\-]?\s*([A-Z]{2})(?:\s|$)/i);
   resultado.cliente.estado = estadoM ? estadoM[1].toUpperCase() : '';
 
-  // Bairro
   let bairroM = t.match(/Bairro[:\-]?\s*([^\n]+?)(?=Munic|N[uú]mero|CEP|Estado|$)/i);
   resultado.cliente.bairro = bairroM ? bairroM[1].trim() : '';
 
-  // Município
   let munM = t.match(/Munic[íi]pio[:\-]?\s*([^\n]+?)(?=N[uú]mero|CEP|E-mail|Observa|Estado|$)/i);
   resultado.cliente.municipio = munM ? munM[1].trim() : '';
 
-  // Número
   let numM = t.match(/N[uú]mero[:\-]?\s*(\d+)/i);
   resultado.cliente.numero = numM ? numM[1].trim() : '';
 
-  // CEP
   let cepM = t.match(/CEP[:\-]?\s*([\d\-]+)/i);
   resultado.cliente.cep = cepM ? cepM[1].trim() : '';
 
-  // Email
   let emailM = t.match(/E-?mail[:\-]?\s*([\w.\-+]+@[\w.\-]+)/i);
   resultado.cliente.email = emailM ? emailM[1].trim() : '';
 
-  // Observações
   let obsM = t.match(/Observa[çc][oõ]es[:\-]?\s*([^\n]+?)(?=Estado Destino|Prazo|Foto|$)/i);
   resultado.cliente.obs = obsM ? obsM[1].trim() : '';
 
-  // ---- ESTADO DESTINO e PRAZO ----
   let destM = t.match(/Estado Destino[^:]*[:\|]\s*([A-Z]{2})/i);
   resultado.estado_destino = destM ? destM[1].toUpperCase() : resultado.cliente.estado;
 
   let prazoM = t.match(/Prazo Selecionado[:\|]?\s*((?:ANTECIPADO|[\d\/]+ DIAS)[^\n|]*?)(?:\s*(?:\||\n|FOTO|$))/i);
   resultado.prazo = prazoM ? prazoM[1].trim().toUpperCase() : '';
 
-  // ---- ITENS ----
-  // Padrão de linha: CODIGO  DESCRICAO  QTD  ...
-  // Código Di Solle: 13 dígitos numéricos
   let linhasItens = [...t.matchAll(/(\d{13})\s+([A-Z][A-Z0-9 \/\-\.]+?)\s+(\d{1,4})\s+R\$/g)];
   
   if (linhasItens.length === 0) {
-    // Fallback: tenta 10+ dígitos seguidos de texto e quantidade
     linhasItens = [...t.matchAll(/(\d{10,15})\s+([A-Z][A-Z0-9 \/\-\.]{4,80}?)\s+(\d{1,4})\s+R\$/g)];
     linhasItens.forEach(m => {
       resultado.itens.push({ codigo: m[1].trim(), qtd: parseInt(m[3]) });
@@ -1672,7 +1592,6 @@ function parsearPedidoDiSolle(texto) {
     });
   }
 
-  // Remove duplicatas (mesmo código, soma qtds se aparecer mais de uma vez)
   let itensMapa = {};
   resultado.itens.forEach(it => {
     if (itensMapa[it.codigo]) {
@@ -1709,13 +1628,11 @@ async function importarPedidoPdf() {
       throw new Error("Nenhum item encontrado no PDF. Verifique se é um pedido Di Solle válido.");
     }
 
-    // Aguarda produtos carregados
     if (PRODUTOS.length === 0) {
       document.getElementById('import-status-txt').innerText = 'Carregando catálogo...';
       await carregarDados();
     }
 
-    // Preenche campos do cliente
     let cli = pedido.cliente;
     ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
       let el = document.getElementById('cli-' + f);
@@ -1723,7 +1640,6 @@ async function importarPedidoPdf() {
     });
     salvarClienteLocal();
 
-    // Define UF destino
     let uf = (pedido.estado_destino || cli.estado || '').toUpperCase().trim();
     if (uf) {
       let optD = document.querySelector(`#uf-d option[value="${uf}"]`);
@@ -1733,13 +1649,11 @@ async function importarPedidoPdf() {
       }
     }
 
-    // Configura prazo
     let prazoStr = pedido.prazo;
     let avisos = [];
     let prazoEncontrado = false;
 
     if (prazoStr) {
-      // Procura em SUB_PRAZOS
       for (let [val, opcoes] of Object.entries(SUB_PRAZOS)) {
         if (opcoes.includes(prazoStr)) {
           document.getElementById('prazo-d').value = val;
@@ -1755,7 +1669,6 @@ async function importarPedidoPdf() {
           break;
         }
       }
-      // Prazo simples
       if (!prazoEncontrado) {
         const MAP = { "28 DIAS":"9","35 DIAS":"7","42 DIAS":"5","56 DIAS":"2","63 DIAS":"0","ANTECIPADO":"14" };
         if (MAP[prazoStr]) {
@@ -1770,7 +1683,6 @@ async function importarPedidoPdf() {
       }
     }
 
-    // Importa itens para SELECIONADOS
     SELECIONADOS = {};
     let itensImportados = 0;
     let itensFaltantes = [];
@@ -1830,7 +1742,7 @@ function fecharModalImportado() {
 }
 
 // =============================================
-// MODAL DE SUCESSO — texto dinâmico conforme a ação
+// MODAIS DE SUCESSO E ORÇAMENTOS
 // =============================================
 function mostrarModalSucesso(tipo) {
   let titulo = document.getElementById('modal-sucesso-titulo');
@@ -1849,9 +1761,6 @@ function mostrarModalSucesso(tipo) {
   document.getElementById('modal-sucesso').classList.add('open');
 }
 
-// =============================================
-// MEUS ORÇAMENTOS — salvar, listar, carregar, excluir (100% local no navegador)
-// =============================================
 function carregarOrcamentosLocal() {
   try { return JSON.parse(localStorage.getItem(LS_ORCAMENTOS) || '[]'); }
   catch (e) { return []; }
@@ -1869,7 +1778,6 @@ function atualizarBadgeOrcamentos() {
   badge.style.display = qtd > 0 ? 'flex' : 'none';
 }
 
-// Salva (ou atualiza, se ORCAMENTO_ATIVO_ID já existir) o carrinho atual como orçamento
 function salvarOrcamentoAtualLocal() {
   let lista = carregarOrcamentosLocal();
 
@@ -1974,14 +1882,12 @@ function carregarOrcamentoLocal(id) {
     if (!confirm("Isso vai substituir o carrinho atual pelos itens deste orçamento. Deseja continuar?")) return;
   }
 
-  // Restaura carrinho
   SELECIONADOS = {};
   Object.keys(o.carrinho).forEach(cod => {
     let prod = PRODUTOS.find(p => p.codigo.toLowerCase().trim() === cod);
     if (prod) SELECIONADOS[cod] = { produto: prod, qtd: o.carrinho[cod] };
   });
 
-  // Restaura dados do cliente
   CAMPOS_CLIENTE_FORM.forEach(f => {
     let el = document.getElementById('cli-' + f);
     if (el) el.value = (o.cliente && o.cliente[f]) ? o.cliente[f] : '';
@@ -1989,7 +1895,6 @@ function carregarOrcamentoLocal(id) {
   salvarClienteLocal();
   if (o.cliente && o.cliente.cnpj) ativarClienteKNE825(o.cliente.cnpj);
 
-  // Restaura UF / prazo
   if (o.config) {
     if (o.config.uf) {
       document.getElementById('uf-d').value = o.config.uf;
@@ -2017,7 +1922,7 @@ function carregarOrcamentoLocal(id) {
 }
 
 // =============================================
-// NAVEGAÇÃO — MODAIS, SHEET E CARRINHO
+// NAVEGAÇÃO E MODAIS DE INTERFACE
 // =============================================
 function fecharModalSucesso() {
   document.getElementById('modal-sucesso').classList.remove('open');
