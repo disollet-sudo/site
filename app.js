@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbwruSrru-2iY14DFId9t3dkUlJKLTta0O45Y2ELO_hOTQSKEv_0rBlk78lSgV10kKa6-g/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbxarBoTDEosNUOPyp4ZcDHjSpp3d6U3DvdM1GC__UrwqQG3q9anWykVXhzj9yhlHlHxng/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -332,32 +332,30 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   }
   if (!m) return null;
 
-  // Pedido mínimo (colunas D/E): compara com o valor total do carrinho — mesma lógica
-  // que já é usada para decidir a troca entre a tabela normal e a tabela maior.
-  let minimo = icmsBase === '12' ? m.minimoIcms12 : m.minimoIcms7;
-  if (minimo && minimo > 0 && brutoCarrinho < minimo) return null;
-
-  let precoBase = icmsBase === '12' ? m.precoIcms12 : m.precoIcms7;
-  if (!precoBase || precoBase <= 0) return null;
-
   let termoAtual = normalizarTexto(TERMOS_PRAZO_BASE_MILLENIUM[String(prazoBase)] || '');
   if (!termoAtual) return null;
 
-  // 1) Colunas de valor fixo (L=Antecipado, M=42 dias, N=63 dias) — já é o preço final
-  //    pronto para aquele prazo, sem nenhum desconto adicional.
-  if (termoAtual === normalizarTexto('ANTECIPADO') && m.fixoAntecipado > 0) {
-    return { preco: m.fixoAntecipado, pctPrazoEfetivo: 1 };
-  }
-  if (termoAtual === normalizarTexto('42 DIAS') && m.fixo42 > 0) {
-    return { preco: m.fixo42, pctPrazoEfetivo: 1 };
-  }
-  if (termoAtual === normalizarTexto('63 DIAS') && m.fixo63 > 0) {
-    return { preco: m.fixo63, pctPrazoEfetivo: 1 };
+  // 1) Valor fixo (L/M/N) específico do ICMS atual — cada fixo tem seu próprio mínimo (0 = sem mínimo)
+  let fixo = (icmsBase === '12') ? m.fixo12 : m.fixo7;
+  if (fixo && fixo.tem && !(fixo.minimo > 0 && brutoCarrinho < fixo.minimo)) {
+    if (termoAtual === normalizarTexto('ANTECIPADO') && fixo.antecipado > 0) {
+      return { preco: fixo.antecipado, pctPrazoEfetivo: 1 };
+    }
+    if (termoAtual === normalizarTexto('42 DIAS') && fixo.d42 > 0) {
+      return { preco: fixo.d42, pctPrazoEfetivo: 1 };
+    }
+    if (termoAtual === normalizarTexto('63 DIAS') && fixo.d63 > 0) {
+      return { preco: fixo.d63, pctPrazoEfetivo: 1 };
+    }
   }
 
-  // 2) Colunas de termo + percentual: F=0%, G=14%, H=9%, I=7%, J=5%, K=2%.
-  //    Se o texto do prazo atual bater com o que está escrito na coluna, usa o preço
-  //    base (B/C) com o percentual de desconto daquela coluna.
+  // 2) Preço base (B/C) + desconto percentual (colunas F-K), com o mínimo geral D/E
+  let minimoBase = (icmsBase === '12') ? m.minimoIcms12 : m.minimoIcms7;
+  if (minimoBase && minimoBase > 0 && brutoCarrinho < minimoBase) return null;
+
+  let precoBase = (icmsBase === '12') ? m.precoIcms12 : m.precoIcms7;
+  if (!precoBase || precoBase <= 0) return null;
+
   for (let col of m.colunas) {
     if (col.termo && normalizarTexto(col.termo) === termoAtual) {
       return { preco: precoBase, pctPrazoEfetivo: (100 - col.pct) / 100 };
@@ -366,7 +364,6 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
 
   return null;
 }
-
 // Retorna { preco, pctPrazoEfetivo } considerando prioridade:
 // Cliente Especial KNE825  >  Tabela Especial MILLENIUM  >  Tabela normal.
 // "preco" é o valor unitário base (mesmo papel que getPrecoFinal sempre teve);
