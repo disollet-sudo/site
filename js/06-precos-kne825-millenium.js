@@ -1,7 +1,5 @@
 /* =============================================
    Di Solle — 06. REGRAS DE PREÇO ESPECIAL (KNE825 e MILLENIUM)
-   ★ Este é o arquivo a editar quando uma regra de preço/desconto mudar. ★
-   Depende de: 01-estado-global.js, 08-catalogo-filtros.js (somarBrutoPrevia)
    ============================================= */
 
 // =============================================
@@ -20,10 +18,8 @@ function getPrecoEspecialKNE825(produto) {
 }
 
 // =============================================
-// TABELA ESPECIAL MILLENIUM (regras por prazo definidas na aba MILLENIUM da planilha)
+// TABELA ESPECIAL MILLENIUM
 // =============================================
-// Mapeia o valor do <select> de prazo base (prazo-d) para o nome do prazo tal como
-// aparece na aba MILLENIUM.
 const TERMOS_PRAZO_BASE_MILLENIUM = { 
   "14": "ANTECIPADO", 
   "9": "28 DIAS", 
@@ -33,8 +29,6 @@ const TERMOS_PRAZO_BASE_MILLENIUM = {
   "0": "63 DIAS" 
 };
 
-// Retorna { preco, pctPrazoEfetivo } se este produto tiver regra MILLENIUM válida para o
-// prazo/ICMS/carrinho atuais, ou null se não se aplicar (nesse caso usa-se o preço normal da tabela).
 function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   if (!TABELA_MILLENIUM || Object.keys(TABELA_MILLENIUM).length === 0) return null;
 
@@ -51,7 +45,7 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   let termoAtual = normalizarTexto(TERMOS_PRAZO_BASE_MILLENIUM[String(prazoBase)] || '');
   let pctPrazoSelect = parseInt(prazoBase) || 0;
 
-  // 1) Valor fixo (L/M/N) específico do ICMS atual — cada fixo tem seu próprio mínimo (0 = sem mínimo)
+  // 1) Valor fixo das colunas L/M/N específico do ICMS atual
   let fixo = (icmsBase === '12') ? m.fixo12 : m.fixo7;
   if (fixo && fixo.tem && !(fixo.minimo > 0 && brutoCarrinho < fixo.minimo)) {
     if (termoAtual === normalizarTexto('ANTECIPADO') && fixo.antecipado > 0) {
@@ -65,20 +59,31 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
     }
   }
 
-  // 2) Preço base (B/C) + desconto percentual (colunas F-K), com o mínimo geral D/E
+  // 2) Preço base (B/C) + colunas F-K (Aceita Porcentagem ou Preço Fixo por item)
   let minimoBase = (icmsBase === '12') ? m.minimoIcms12 : m.minimoIcms7;
   if (minimoBase && minimoBase > 0 && brutoCarrinho < minimoBase) return null;
 
   let precoBase = (icmsBase === '12') ? m.precoIcms12 : m.precoIcms7;
-  if (!precoBase || precoBase <= 0) return null;
 
   if (m.colunas && m.colunas.length > 0) {
     for (let col of m.colunas) {
-      if (!col.termo) continue;
-      
-      let termoCol = normalizarTexto(col.termo);
-      // Verifica equivalência pelo termo do prazo ou pela igualdade direta da % de desconto
+      if (col.termo === undefined || col.termo === null || col.termo === '') continue;
+
+      let termoCol = normalizarTexto(String(col.termo));
+
+      // Verifica se a coluna bate com o prazo selecionado (por termo ou por % do select)
       if (termoCol === termoAtual || col.pct === pctPrazoSelect) {
+        // Tenta identificar se foi colocado um PREÇO FIXO direto na célula (ex: 1.85 ou 1,85)
+        let valLimpo = String(col.termo).replace('R$', '').replace(',', '.').trim();
+        let valorNumFixo = parseFloat(valLimpo);
+
+        // Se for um número válido maior que 0 e diferente de marcações comuns
+        if (!isNaN(valorNumFixo) && valorNumFixo > 0 && valLimpo !== String(col.pct)) {
+          return { preco: valorNumFixo, pctPrazoEfetivo: 1 };
+        }
+
+        // Se for marcação/porcentagem, aplica o desconto % sobre o Preço Base
+        if (!precoBase || precoBase <= 0) return null;
         let pctAplicar = (col.pct !== undefined && col.pct !== null) ? col.pct : pctPrazoSelect;
         return { preco: precoBase, pctPrazoEfetivo: (100 - pctAplicar) / 100 };
       }
@@ -88,8 +93,7 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   return null;
 }
 
-// Retorna { preco, pctPrazoEfetivo } considerando prioridade:
-// Cliente Especial KNE825  >  Tabela Especial MILLENIUM  >  Tabela normal.
+// Retorna as informações detalhadas de preço e desconto do item
 function getInfoPrecoItem(produto, tabelaAtiva) {
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let prazoBase = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
@@ -101,7 +105,7 @@ function getInfoPrecoItem(produto, tabelaAtiva) {
   }
 
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  let brutoCarrinho = somarBrutoPrevia();
+  let brutoCarrinho = typeof somarBrutoPrevia === 'function' ? somarBrutoPrevia() : 0;
   let mill = getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho);
   if (mill) return mill;
 
@@ -109,14 +113,15 @@ function getInfoPrecoItem(produto, tabelaAtiva) {
   return { preco: precoNormal, pctPrazoEfetivo: pctPrazoGlobal };
 }
 
-// Mantém a mesma assinatura de sempre — usada em cards, modal e carrinho — e continua
-// retornando só o preço unitário "bruto" (ainda sem o desconto de prazo aplicado).
+// Retorna o PREÇO UNITÁRIO LÍQUIDO FINAL para ser exibido nos Cards, Modais e Carrinho
 function getPrecoFinal(produto, tabelaNormal) {
-  return getInfoPrecoItem(produto, tabelaNormal).preco;
+  let info = getInfoPrecoItem(produto, tabelaNormal);
+  if (!info) return 0;
+  let pct = (info.pctPrazoEfetivo !== undefined) ? info.pctPrazoEfetivo : 1;
+  return info.preco * pct;
 }
 
 function verificarModoEspecial() {
-  // Ativa somente se CNPJ do cliente = KNE825 E prazo = 28 dias (valor "9")
   let cnpjAtual = (document.getElementById('cli-cnpj') ? document.getElementById('cli-cnpj').value : '').replace(/\D/g,'');
   let prazo = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
   CLIENTE_ESPECIAL_ATIVO = (cnpjAtual === CNPJ_KNE825 && prazo === '9' && Object.keys(TABELA_KNE825).length > 0);
