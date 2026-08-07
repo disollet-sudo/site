@@ -2,10 +2,32 @@
    Di Solle — 06. REGRAS DE PREÇO ESPECIAL (KNE825 e MILLENIUM)
    ============================================= */
 
-// Helper para converter valores monetários ou strings numéricas em Float
+// Helper para converter valores monetários ou strings numéricas em Float.
+// CORRIGIDO: a planilha MILLENIUM tem colunas com tipos misturados —
+// algumas células voltam como NUMBER puro do Apps Script (ex: 3.276),
+// outras como STRING em formato BR (ex: "3,60" ou "1.234,56").
+// Antes, a função sempre convertia pra string e removia TODO ponto,
+// o que destruía o ponto decimal de números puros (3.276 virava 3276).
+// Agora: número puro é usado direto; só strings passam pela limpeza
+// de formato brasileiro (ponto de milhar + vírgula decimal).
 function parseValorNum(val) {
-  if (val === undefined || val === null) return 0;
-  let s = String(val).replace('R$', '').replace('%', '').replace(/\./g, '').replace(',', '.').trim();
+  if (val === undefined || val === null || val === '') return 0;
+
+  // Já é number (veio direto da planilha como célula numérica) — usa direto.
+  if (typeof val === 'number') {
+    return isNaN(val) ? 0 : val;
+  }
+
+  let s = String(val).replace('R$', '').replace('%', '').trim();
+  if (!s) return 0;
+
+  // Só remove pontos como separador de milhar se houver vírgula decimal
+  // (formato BR: "1.234,56"). Sem vírgula, o ponto (se existir) já é o
+  // separador decimal normal (ex: "3.6") e não deve ser removido.
+  if (s.indexOf(',') !== -1) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  }
+
   let n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
