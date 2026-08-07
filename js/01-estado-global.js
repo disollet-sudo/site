@@ -22,8 +22,8 @@ let BLOQUEIA_SALVAMENTO_CNPJ = false;
 let MODO_MODAL_CLIENTE = 'pedido'; // 'pedido' ou 'orcamento' — controla o comportamento do modal de dados do cliente
 let ORCAMENTO_ATIVO_ID = null;     // id do orçamento salvo que está sendo editado no carrinho atual (null = nenhum)
 let TABELA_ATIVA_ANTERIOR = null;  // guarda a última tabela de preço aplicada — usado para só
-                                    // re-renderizar o grid de produtos quando ela realmente mudar
-                                    // (evita recriar todos os cards/fotos a cada clique no carrinho)
+                                   // re-renderizar o grid de produtos quando ela realmente mudar
+                                   // (evita recriar todos os cards/fotos a cada clique no carrinho)
 
 // --- CLIENTE ESPECIAL KNE825 ---
 const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
@@ -56,21 +56,21 @@ const CAMPOS_CLIENTE_FORM = ['cnpj','razao','fantasia','telefone','endereco','es
 let RESTAURANDO_ESTADO = false; // true enquanto restaurarEstadoLocal() está rodando, evita sobrescrever o localStorage com dados vazios pela metade
 
 // --- CATÁLOGO / FILTROS ---
-let _filtrarTimeout = null;
+var _filtrarTimeout = typeof _filtrarTimeout !== 'undefined' ? _filtrarTimeout : null;
 
 // --- FILTRO POR LINHA DE PRODUTO (2 primeiros dígitos do código) ---
 const LINHAS_PRODUTO = [
-  { nome: 'Paraty',     prefixo: '01' },
+  { nome: 'Paraty',    prefixo: '01' },
   { nome: 'Tradição',   prefixo: '06' },
-  { nome: 'Clean',      prefixo: '07' },
-  { nome: 'Utilidade',  prefixo: '07' },
-  { nome: 'Sollewood',  prefixo: '08' },
-  { nome: 'Classica',   prefixo: '10' },
-  { nome: 'Millenium',  prefixo: '14' },
-  { nome: 'Durafio',    prefixo: '18' },
-  { nome: 'Oceano',     prefixo: '27' },
-  { nome: 'Universo',   prefixo: '33' },
-  { nome: 'Prisma',     prefixo: '35' },
-  { nome: 'Inova',      prefixo: '38' }
+  { nome: 'Clean',     prefixo: '07' },
+  { nome: 'Utilidade', prefixo: '07' },
+  { nome: 'Sollewood', prefixo: '08' },
+  { nome: 'Classica',  prefixo: '10' },
+  { nome: 'Millenium', prefixo: '14' },
+  { nome: 'Durafio',   prefixo: '18' },
+  { nome: 'Oceano',    prefixo: '27' },
+  { nome: 'Universo',  prefixo: '33' },
+  { nome: 'Prisma',    prefixo: '35' },
+  { nome: 'Inova',     prefixo: '38' }
 ];
 let FILTRO_LINHA_ATIVO = null; // prefixo de 2 dígitos ativo, ou null
