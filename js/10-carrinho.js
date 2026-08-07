@@ -12,7 +12,6 @@
 function limSel() {
   SELECIONADOS = {};
   calcularTudo();
-  // Limpa também os dados cadastrais do cliente conforme solicitado
   ['cnpj','razao','fantasia','telefone','endereco','estado','bairro','municipio','numero','cep','email','obs'].forEach(f => {
     let input = document.getElementById('cli-' + f);
     if (input) input.value = '';
@@ -56,7 +55,6 @@ function iniciarNovoPedido() {
 // CARRINHO — RENDERIZAÇÃO INDEPENDENTE
 // =============================================
 function renderizarCarrinho(tabelaAtiva) {
-  // Recalcula tabelaAtiva se não fornecida
   if (!tabelaAtiva) {
     let uf = document.getElementById('uf-d').value;
     let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
@@ -74,7 +72,6 @@ function renderizarCarrinho(tabelaAtiva) {
   let prazoBase = parseInt(document.getElementById('prazo-d').value) || 0;
   let pctPrazo = (100 - prazoBase) / 100;
 
-  // Guarda a posição de scroll antes de limpar
   let scrollTop = hd.scrollTop;
   hd.innerHTML = '';
 
@@ -97,7 +94,6 @@ function renderizarCarrinho(tabelaAtiva) {
     let div = document.createElement('div');
     div.className = 'cart-item';
 
-    // Miniatura
     let imgEl = document.createElement('div');
     imgEl.className = 'cart-item-img';
     if (p.fileId) {
@@ -110,7 +106,6 @@ function renderizarCarrinho(tabelaAtiva) {
       imgEl.innerHTML = '<span style="font-size:18px;color:#ddd;">📷</span>';
     }
 
-    // Info
     let infoEl = document.createElement('div');
     infoEl.className = 'cart-item-info';
     infoEl.innerHTML = `
@@ -119,7 +114,6 @@ function renderizarCarrinho(tabelaAtiva) {
       <div class="cart-item-preco">${formatDin(precoUnit)} × ${qty} = <b style="color:var(--verde-dk)">${formatDin(totalItem)}</b></div>
     `;
 
-    // Controle de quantidade — usando addEventListener, não onclick inline
     let ctrlEl = document.createElement('div');
     ctrlEl.className = 'cart-qty-ctrl';
     ctrlEl.style.cssText = 'margin-top:8px;align-self:flex-start;';
@@ -188,7 +182,6 @@ function renderizarCarrinho(tabelaAtiva) {
     ctrlEl.appendChild(inputQty);
     ctrlEl.appendChild(btnMais);
 
-    // Botão remover
     let rmBtn = document.createElement('button');
     rmBtn.className = 'cart-rm-btn';
     rmBtn.title = 'Remover';
@@ -200,7 +193,6 @@ function renderizarCarrinho(tabelaAtiva) {
 
     div.appendChild(imgEl);
 
-    // Wrapper direito: info + controles + botão remover
     let rightEl = document.createElement('div');
     rightEl.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;gap:0;';
 
@@ -216,7 +208,6 @@ function renderizarCarrinho(tabelaAtiva) {
     hd.appendChild(div);
   });
 
-  // Restaura scroll
   hd.scrollTop = scrollTop;
 
   let rh = document.getElementById('cart-header-resumo');
@@ -293,14 +284,14 @@ function calcularTudo() {
   let subtotalBrutoInicial = somarBrutoPrevia();
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
-  let totalComDescontoAcumulado = 0; // soma já com o desconto certo de cada item (normal, KNE825 ou MILLENIUM)
+  let totalComDescontoAcumulado = 0;
 
   Object.keys(SELECIONADOS).forEach(c => {
     let item = SELECIONADOS[c];
     let p = item.produto, qty = item.qtd;
     let infoPreco = getInfoPrecoItem(p, tabelaAtiva);
     let precoUnit = infoPreco.preco;
-    let pctPrazoItem = infoPreco.pctPrazoEfetivo; // desconto específico deste item
+    let pctPrazoItem = infoPreco.pctPrazoEfetivo;
     let totalItemOriginal = precoUnit * qty;
     subtotalProdutos += totalItemOriginal;
     contItens += qty;
@@ -313,8 +304,14 @@ function calcularTudo() {
     totalIpi += (valorIpiCada * qty);
 
     listaItensPdf.push({
-      fileId: p.fileId, codigo: p.codigo, descricao: p.descricao, qtd: qty, ncm: p.ncm,
-      valorComDesconto: valorComDescontoPrazo, valorIpiCada: valorIpiCada, ipi: p.ipi,
+      fileId: p.fileId || '',
+      codigo: p.codigo,
+      descricao: p.descricao,
+      qtd: qty,
+      ncm: p.ncm || '',
+      valorComDesconto: valorComDescontoPrazo,
+      valorIpiCada: valorIpiCada,
+      ipi: p.ipi || 0,
       valorComIpi: valorItemComIpi,
       valorTotalItem: valorTotalItemDescIpi,
       valorTotalItemFormatado: valorTotalItemDescIpi.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -324,7 +321,6 @@ function calcularTudo() {
     });
   });
 
-  // Renderiza o carrinho separadamente
   renderizarCarrinho(tabelaAtiva);
 
   document.getElementById('badge').innerText = `${contItens} itens`;
@@ -355,7 +351,7 @@ function calcularTudo() {
       totalIpi,
       valorFrete: freteVal > 0 ? freteVal : 0,
       liquido: totalLiquido,
-      totalCx: contItens, // total de caixas do pedido (usado no registro da planilha)
+      totalCx: contItens,
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -363,7 +359,6 @@ function calcularTudo() {
       valorFreteFormatado: (freteVal > 0 ? freteVal : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       liquidoFormatado: totalLiquido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
     },
-    // AJUSTADO: Diretrizes gerais de layout adicionadas na raiz do objeto para processamento global de layout do PDF
     layoutAjustes: {
       colunaFotoLarguraAumento: 1.50,
       colunaDescricaoMenor: true,
@@ -373,7 +368,6 @@ function calcularTudo() {
 
   const upd = (prefix) => {
     document.getElementById(prefix + '-tabela-ativa').innerText = tabelaAtiva;
-    // Subtotal exibe o valor já com desconto do prazo aplicado
     document.getElementById(prefix + '-bruto-prod').innerText = formatDin(valorProdutoCalculado);
     document.getElementById(prefix + '-prazo-pct').innerText = prazoBase;
     document.getElementById(prefix + '-prazo-val').innerText = '- ' + formatDin(valDescPrazo);
@@ -386,12 +380,6 @@ function calcularTudo() {
   };
   upd('rd'); upd('rm');
 
-  // Rerenderiza os cards do catálogo (grid inteiro + fotos) quando a tabela de preço
-  // ativa OU o prazo mudarem. O prazo entrou na chave porque itens com desconto
-  // específico (KNE825/MILLENIUM) podem mudar de preço só por causa do prazo, mesmo
-  // com a tabela ativa continuando a mesma — antes isso deixava o card com o preço
-  // "congelado" do carregamento inicial. Buscas e filtros continuam funcionando
-  // normalmente, pois chamam filtrar() diretamente.
   let chaveRenderizacao = tabelaAtiva + '|' + prazoBase;
   if (chaveRenderizacao !== TABELA_ATIVA_ANTERIOR) {
     TABELA_ATIVA_ANTERIOR = chaveRenderizacao;
