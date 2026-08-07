@@ -4,7 +4,7 @@
    UF/prazo e o calcularTudo() — a função central que recalcula preços,
    descontos, IPI, frete e monta o objeto DADOS_PDF_PRONTO.
    Depende de: 01-estado-global.js, 05-utils-busca.js,
-               06-precos-kne825-millenium.js (getPrecoFinal),
+               06-precos-kne825-millenium.js (getPrecoFinal, getInfoPrecoItem),
                08-catalogo-filtros.js (filtrar, somarBrutoPrevia),
                03-persistencia-local.js
    ============================================= */
@@ -293,16 +293,20 @@ function calcularTudo() {
   let subtotalBrutoInicial = somarBrutoPrevia();
 
   let subtotalProdutos = 0, totalIpi = 0, contItens = 0, listaItensPdf = [];
+  let totalComDescontoAcumulado = 0; // soma já com o desconto certo de cada item (normal, KNE825 ou MILLENIUM)
 
   Object.keys(SELECIONADOS).forEach(c => {
     let item = SELECIONADOS[c];
     let p = item.produto, qty = item.qtd;
-    let precoUnit = getPrecoFinal(p, tabelaAtiva);
+    let infoPreco = getInfoPrecoItem(p, tabelaAtiva);
+    let precoUnit = infoPreco.preco;
+    let pctPrazoItem = infoPreco.pctPrazoEfetivo; // desconto específico deste item
     let totalItemOriginal = precoUnit * qty;
     subtotalProdutos += totalItemOriginal;
     contItens += qty;
 
-    let valorComDescontoPrazo = precoUnit * pctPrazo;
+    let valorComDescontoPrazo = precoUnit * pctPrazoItem;
+    totalComDescontoAcumulado += valorComDescontoPrazo * qty;
     let valorIpiCada = valorComDescontoPrazo * (p.ipi / 100);
     let valorItemComIpi = valorComDescontoPrazo + valorIpiCada;
     let valorTotalItemDescIpi = valorItemComIpi * qty;
@@ -328,9 +332,8 @@ function calcularTudo() {
   document.getElementById('cart-count').innerText = Object.keys(SELECIONADOS).length;
   document.getElementById('cart-count-m').innerText = Object.keys(SELECIONADOS).length;
 
-  let valDescPrazo = 0;
-  if (prazoBase > 0) { valDescPrazo = subtotalProdutos - (subtotalProdutos * pctPrazo); }
-  let subtotalLiquidoParcial = (subtotalProdutos - valDescPrazo) + totalIpi;
+  let valDescPrazo = subtotalProdutos - totalComDescontoAcumulado;
+  let subtotalLiquidoParcial = totalComDescontoAcumulado + totalIpi;
 
   let freteVal = 0, configFrete = FRETE_REGRAS[uf] || null;
   if (configFrete && subtotalBrutoInicial < configFrete.pedidoMinimo) freteVal = -1;
@@ -383,13 +386,15 @@ function calcularTudo() {
   };
   upd('rd'); upd('rm');
 
-  // Rerenderiza os cards do catálogo (grid inteiro + fotos) apenas quando a tabela de
-  // preço ativa realmente mudar. Isso evita recriar todos os cards a cada clique de
-  // +/- no carrinho (que antes disparava um filtrar() completo sem necessidade, deixando
-  // o app lento com carrinhos grandes). Buscas, filtros e trocas de UF/prazo continuam
-  // funcionando normalmente, pois chamam filtrar() diretamente ou alteram a tabelaAtiva.
-  if (tabelaAtiva !== TABELA_ATIVA_ANTERIOR) {
-    TABELA_ATIVA_ANTERIOR = tabelaAtiva;
+  // Rerenderiza os cards do catálogo (grid inteiro + fotos) quando a tabela de preço
+  // ativa OU o prazo mudarem. O prazo entrou na chave porque itens com desconto
+  // específico (KNE825/MILLENIUM) podem mudar de preço só por causa do prazo, mesmo
+  // com a tabela ativa continuando a mesma — antes isso deixava o card com o preço
+  // "congelado" do carregamento inicial. Buscas e filtros continuam funcionando
+  // normalmente, pois chamam filtrar() diretamente.
+  let chaveRenderizacao = tabelaAtiva + '|' + prazoBase;
+  if (chaveRenderizacao !== TABELA_ATIVA_ANTERIOR) {
+    TABELA_ATIVA_ANTERIOR = chaveRenderizacao;
     filtrar();
   }
 
