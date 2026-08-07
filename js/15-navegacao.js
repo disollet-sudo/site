@@ -1,7 +1,5 @@
 /* =============================================
    Di Solle — 15. NAVEGAÇÃO — MODAIS, SHEET E CARRINHO
-   Abrir/fechar os modais e o bottom-sheet mobile.
-   Depende de: 01-estado-global.js, 06-precos-kne825-millenium.js, 08-catalogo-filtros.js, 10-carrinho.js (limSel, atualizarCarrinho)
    ============================================= */
 
 // =============================================
@@ -14,17 +12,16 @@ function alterouPrazoBase(idOrigem, idDestino) {
     elemDestino.value = elemOrigem.value;
   }
 
-  // Valida a regra especial KNE825
   if (typeof verificarModoEspecial === 'function') {
     verificarModoEspecial();
   }
 
-  // Re-renderiza o catálogo para atualizar instantaneamente os preços dos cards na tela
+  // Re-renderiza o catálogo para atualizar instantaneamente os preços na tela
   if (typeof renderizarProdutos === 'function') {
     renderizarProdutos();
   }
 
-  // Recalcula o subtotal e totais do carrinho com as novas condições
+  // Recalcula o subtotal e os totais do carrinho
   if (typeof atualizarCarrinho === 'function') {
     atualizarCarrinho();
   }
@@ -37,12 +34,12 @@ function alterouUF(idOrigem, idDestino) {
     elemDestino.value = elemOrigem.value;
   }
 
-  // Re-renderiza o catálogo para recalcular o ICMS (7% vs 12%) nos cards
+  // Re-renderiza o catálogo para recalcular a alíquota de ICMS (7% vs 12%)
   if (typeof renderizarProdutos === 'function') {
     renderizarProdutos();
   }
 
-  // Recalcula os valores do carrinho com a nova alíquota/frete da UF
+  // Recalcula o carrinho com as novas condições da UF
   if (typeof atualizarCarrinho === 'function') {
     atualizarCarrinho();
   }
