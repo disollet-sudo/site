@@ -34,14 +34,12 @@ function executarFiltro() {
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   let f = PRODUTOS.filter(p => {
-    let precoBaseItem = typeof getPrecoFinal === 'function' 
+    // getPrecoFinal já devolve o preço final (com prazo/regra especial já aplicados)
+    let preco = typeof getPrecoFinal === 'function' 
       ? getPrecoFinal(p, tabelaFiltro) 
       : (p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro]);
 
-    if (!precoBaseItem) return false;
-
-    // Aplica o desconto de prazo para o filtro de preço máximo igualar ao modal
-    let preco = precoBaseItem * pctPrazo2;
+    if (!preco) return false;
 
     let mat = buscaInteligente([p.codigo, p.descricao, p.codigoEan], b);
     if (promo === 'sim' && !p.emPromocao) mat = false;
@@ -156,11 +154,10 @@ function renderizar(arr) {
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   arr.forEach(p => {
-    let pBaseFinal = typeof getPrecoFinal === 'function' ? getPrecoFinal(p, tabelaCard) : null;
-    if (!pBaseFinal) return;
-
-    // AJUSTE: Aplica o percentual do prazo (pctPrazoR) no preço exibido do card
-    let pFinal = pBaseFinal * pctPrazoR;
+    // getPrecoFinal já devolve o preço final pronto (prazo e regra especial Millenium
+    // já aplicados dentro de getInfoPrecoItem) — não multiplicar pelo prazo de novo aqui.
+    let pFinal = typeof getPrecoFinal === 'function' ? getPrecoFinal(p, tabelaCard) : null;
+    if (!pFinal) return;
 
     let keyCod = p.codigo.toLowerCase().trim();
     let qty = SELECIONADOS[keyCod] ? SELECIONADOS[keyCod].qtd : 0;
