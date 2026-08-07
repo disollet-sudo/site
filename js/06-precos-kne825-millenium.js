@@ -32,7 +32,10 @@ function getPrecoEspecialKNE825(produto) {
 // =============================================
 // TABELA ESPECIAL MILLENIUM (Regra por Colunas Diretas)
 // =============================================
-function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
+// ignorarMinimo: quando true, pula a checagem do "Pedido mínimo" (coluna B).
+// Usado por getPrecoBrutoItem() pra saber o preço Millenium do item SEM
+// depender do próprio bruto do carrinho (evita loop circular).
+function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho, ignorarMinimo) {
   if (!TABELA_MILLENIUM || Object.keys(TABELA_MILLENIUM).length === 0) return null;
 
   let codNorm = produto.codigo.toLowerCase().trim();
@@ -72,10 +75,12 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
       continue;
     }
 
-    // 2. Validação de Pedido Mínimo (Coluna B)
-    let minimo = parseValorNum(item.minimo);
-    if (minimo > 0 && brutoCarrinho < minimo) {
-      continue;
+    // 2. Validação de Pedido Mínimo (Coluna B) — pulada quando ignorarMinimo=true
+    if (!ignorarMinimo) {
+      let minimo = parseValorNum(item.minimo);
+      if (minimo > 0 && brutoCarrinho < minimo) {
+        continue;
+      }
     }
 
     // 3. Leitura direta do valor na coluna correspondente ao prazo selecionado
@@ -97,6 +102,17 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   }
 
   return null;
+}
+
+// Retorna o preço "bruto" de um item para fins de soma do carrinho (checar Pedido Mínimo/frete).
+// Se o item está na aba Millenium, usa o preço Millenium do prazo atual (ignorando o próprio
+// mínimo, pra não virar loop). Se não está na Millenium, usa a tabela normal como antes.
+function getPrecoBrutoItem(produto, icmsBase, prazoBase, tabelaBase) {
+  let mill = getInfoMillenium(produto, icmsBase, prazoBase, 0, true);
+  if (mill) return mill.preco;
+  return produto.emPromocao
+    ? (produto.precosPromo && produto.precosPromo[tabelaBase] ? produto.precosPromo[tabelaBase] : 0)
+    : (produto.precos && produto.precos[tabelaBase] ? produto.precos[tabelaBase] : 0);
 }
 
 // Retorna as informações detalhadas de preço do item
