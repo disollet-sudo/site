@@ -8,7 +8,7 @@
    Este arquivo precisa ser o PRIMEIRO <script> carregado no index.html.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbyA3TqWtGXYOgpa2p_iHz7dDX2DNZQ8qhzyrUTE_Do5WmmYPdbuTUAhCTSaOR168U3mYQ/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbz6qpZZE_6i0k-Caz3QZBC7JeHrOXWB5r6spNnxA1Yc3qwCLim0kk0Nn0o_vK8E7fDwFA/exec";
 
 // --- ESTADO GLOBAL PRINCIPAL ---
 let PRODUTOS = [];
