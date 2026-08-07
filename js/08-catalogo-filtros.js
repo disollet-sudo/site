@@ -7,8 +7,6 @@
                10-carrinho.js (calcularTotalLiquidoComTabela)
    ============================================= */
 
-let _filtrarTimeout = null;
-
 function filtrar() {
   clearTimeout(_filtrarTimeout);
   _filtrarTimeout = setTimeout(executarFiltro, 150);
