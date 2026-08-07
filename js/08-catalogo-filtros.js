@@ -3,7 +3,7 @@
    Busca/filtros do catálogo, filtro por linha de produto e desenho
    dos cards de produto na tela.
    Depende de: 01-estado-global.js, 05-utils-busca.js,
-               06-precos-kne825-millenium.js (getPrecoFinal),
+               06-precos-kne825-millenium.js (getPrecoFinal, getPrecoBrutoItem),
                10-carrinho.js (calcularTotalLiquidoComTabela)
    ============================================= */
 
@@ -119,14 +119,18 @@ document.addEventListener('click', (e) => {
 // =============================================
 function somarBrutoPrevia() {
   // Soma sempre pela tabela BASE (M26071 ou M26121) para decidir o threshold.
-  // A decisão de qual tabela aplicar de fato é feita pelos callers (calcularTudo, filtrar, renderizar).
+  // Itens da aba Millenium usam o preço Millenium do prazo atual (não a tabela
+  // normal, que pode estar zerada/desatualizada pra esses códigos).
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let prazoBase = parseInt(document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : 0) || 0;
   let tabelaBase = icmsBase === "7" ? "M26071" : "M26121";
   let bruto = 0;
   Object.values(SELECIONADOS).forEach(item => {
     let p = item.produto;
-    let precoUnit = p.emPromocao ? (p.precosPromo[tabelaBase] || 0) : (p.precos[tabelaBase] || 0);
+    let precoUnit = typeof getPrecoBrutoItem === 'function'
+      ? getPrecoBrutoItem(p, icmsBase, prazoBase, tabelaBase)
+      : (p.emPromocao ? (p.precosPromo[tabelaBase] || 0) : (p.precos[tabelaBase] || 0));
     bruto += (precoUnit * item.qtd);
   });
   return bruto;
