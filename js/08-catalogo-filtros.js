@@ -7,6 +7,8 @@
                10-carrinho.js (calcularTotalLiquidoComTabela)
    ============================================= */
 
+let _filtrarTimeout = null;
+
 function filtrar() {
   clearTimeout(_filtrarTimeout);
   _filtrarTimeout = setTimeout(executarFiltro, 150);
@@ -20,20 +22,29 @@ function executarFiltro() {
   let pMax = elPreco ? (parseFloat(elPreco.value) || 0) : 0;
 
   // Calcula a tabela ativa da mesma forma que o modal e renderizar()
-  let uf = document.getElementById('uf-d').value;
-  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  let prazoBase2 = parseInt(document.getElementById('prazo-d').value) || 0;
+  let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let prazoBase2 = parseInt(document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : 0) || 0;
   let pctPrazo2 = (100 - prazoBase2) / 100;
   let tabelaBase2 = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabela2 = icmsBase === "7" ? 5000 : 2500;
-  let liquidoPrevia2 = calcularTotalLiquidoComTabela(tabelaBase2, pctPrazo2, uf);
+  let liquidoPrevia2 = typeof calcularTotalLiquidoComTabela === 'function' 
+    ? calcularTotalLiquidoComTabela(tabelaBase2, pctPrazo2, uf) 
+    : 0;
   let tabelaFiltro = (liquidoPrevia2 <= limiteTabela2)
     ? tabelaBase2
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   let f = PRODUTOS.filter(p => {
-    let preco = p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro];
-    if (!preco) return false;
+    let precoBaseItem = typeof getPrecoFinal === 'function' 
+      ? getPrecoFinal(p, tabelaFiltro) 
+      : (p.emPromocao ? p.precosPromo[tabelaFiltro] : p.precos[tabelaFiltro]);
+
+    if (!precoBaseItem) return false;
+
+    // Aplica o desconto de prazo para o filtro de preço máximo igualar ao modal
+    let preco = precoBaseItem * pctPrazo2;
+
     let mat = buscaInteligente([p.codigo, p.descricao, p.codigoEan], b);
     if (promo === 'sim' && !p.emPromocao) mat = false;
     if (pMax > 0 && preco > pMax) mat = false;
@@ -127,23 +138,31 @@ function somarBrutoPrevia() {
 
 function renderizar(arr) {
   const g = document.getElementById('grid');
+  if (!g) return;
   g.innerHTML = '';
-  document.getElementById('cont').innerText = `${arr.length} produtos`;
 
-  let uf = document.getElementById('uf-d').value;
-  let icmsBase = (["RS", "SC", "PR","SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
-  let prazoBaseR = parseInt(document.getElementById('prazo-d').value) || 0;
+  let elCont = document.getElementById('cont');
+  if (elCont) elCont.innerText = `${arr.length} produtos`;
+
+  let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
+  let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
+  let prazoBaseR = parseInt(document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : 0) || 0;
   let pctPrazoR = (100 - prazoBaseR) / 100;
   let tabelaBaseR = icmsBase === "7" ? "M26071" : "M26121";
   let limiteTabelaR = icmsBase === "7" ? 5000 : 2500;
-  let liquidoPreviaR = calcularTotalLiquidoComTabela(tabelaBaseR, pctPrazoR, uf);
+  let liquidoPreviaR = typeof calcularTotalLiquidoComTabela === 'function'
+    ? calcularTotalLiquidoComTabela(tabelaBaseR, pctPrazoR, uf)
+    : 0;
   let tabelaCard = (liquidoPreviaR <= limiteTabelaR)
     ? tabelaBaseR
     : (icmsBase === "7" ? "M26072" : "M26122");
 
   arr.forEach(p => {
-    let pFinal = getPrecoFinal(p, tabelaCard);
-    if (!pFinal) return;
+    let pBaseFinal = typeof getPrecoFinal === 'function' ? getPrecoFinal(p, tabelaCard) : null;
+    if (!pBaseFinal) return;
+
+    // AJUSTE: Aplica o percentual do prazo (pctPrazoR) no preço exibido do card
+    let pFinal = pBaseFinal * pctPrazoR;
 
     let keyCod = p.codigo.toLowerCase().trim();
     let qty = SELECIONADOS[keyCod] ? SELECIONADOS[keyCod].qtd : 0;
@@ -162,3 +181,12 @@ function renderizar(arr) {
     g.appendChild(c);
   });
 }
+
+// Atualiza a renderização automaticamente ao alterar o Prazo ou a UF
+document.addEventListener('DOMContentLoaded', () => {
+  let elUf = document.getElementById('uf-d');
+  let elPrazo = document.getElementById('prazo-d');
+
+  if (elUf) elUf.addEventListener('change', filtrar);
+  if (elPrazo) elPrazo.addEventListener('change', filtrar);
+});
