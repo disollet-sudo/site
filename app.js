@@ -3,7 +3,7 @@
    Para adicionar funcionalidades, mexa aqui.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbxarBoTDEosNUOPyp4ZcDHjSpp3d6U3DvdM1GC__UrwqQG3q9anWykVXhzj9yhlHlHxng/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbytMTSX7K3iunVeikbW60y08nTA3xgQKOyZupyrvW2N9QZMkWbCYNwqyj0wuI_-PL9enw/exec";
 
 // --- ESTADO GLOBAL ---
 let PRODUTOS = [];
@@ -16,6 +16,9 @@ let PRODUTO_MODAL_ATIVO = null;
 let BLOQUEIA_SALVAMENTO_CNPJ = false;
 let MODO_MODAL_CLIENTE = 'pedido'; // 'pedido' ou 'orcamento' — controla o comportamento do modal de dados do cliente
 let ORCAMENTO_ATIVO_ID = null;     // id do orçamento salvo que está sendo editado no carrinho atual (null = nenhum)
+let TABELA_ATIVA_ANTERIOR = null;  // guarda a última tabela de preço aplicada — usado para só
+                                    // re-renderizar o grid de produtos quando ela realmente mudar
+                                    // (evita recriar todos os cards/fotos a cada clique no carrinho)
 
 // --- CLIENTE ESPECIAL KNE825 ---
 const CNPJ_KNE825 = '92740687000110';          // CNPJ fixo do cliente especial
@@ -1074,6 +1077,7 @@ function calcularTudo() {
       totalIpi,
       valorFrete: freteVal > 0 ? freteVal : 0,
       liquido: totalLiquido,
+      totalCx: contItens, // total de caixas do pedido (usado no registro da planilha)
       valorProdutoFormatado: valorProdutoCalculado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       subtotalFormatado: subtotalProdutos.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       valPrazoFormatado: valDescPrazo.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -1103,8 +1107,16 @@ function calcularTudo() {
     document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
   };
   upd('rd'); upd('rm');
-  // Rerenderiza os cards para atualizar preços conforme tabela/estado
-  filtrar();
+
+  // Rerenderiza os cards do catálogo (grid inteiro + fotos) apenas quando a tabela de
+  // preço ativa realmente mudar. Isso evita recriar todos os cards a cada clique de
+  // +/- no carrinho (que antes disparava um filtrar() completo sem necessidade, deixando
+  // o app lento com carrinhos grandes). Buscas, filtros e trocas de UF/prazo continuam
+  // funcionando normalmente, pois chamam filtrar() diretamente ou alteram a tabelaAtiva.
+  if (tabelaAtiva !== TABELA_ATIVA_ANTERIOR) {
+    TABELA_ATIVA_ANTERIOR = tabelaAtiva;
+    filtrar();
+  }
 
   let mb = document.getElementById('mb-info');
   mb.innerHTML = contItens === 0 ? 'Selecione produtos' : `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
@@ -1390,7 +1402,7 @@ function confirmarSalvamentoPedido() {
 
   let payloadPlanilha = {
     acao: 'pedido',
-    qtd: document.getElementById('cart-count').innerText,
+    qtd: DADOS_PDF_PRONTO.contas.totalCx, // total de caixas do pedido (antes usava o nº de produtos distintos, por engano)
     subtotalProdutos: DADOS_PDF_PRONTO.contas.subtotal,
     totalIpi: DADOS_PDF_PRONTO.contas.totalIpi,
     totalDescontos: DADOS_PDF_PRONTO.contas.valPrazo,
