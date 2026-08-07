@@ -23,9 +23,15 @@ function getPrecoEspecialKNE825(produto) {
 // TABELA ESPECIAL MILLENIUM (regras por prazo definidas na aba MILLENIUM da planilha)
 // =============================================
 // Mapeia o valor do <select> de prazo base (prazo-d) para o nome do prazo tal como
-// aparece na aba MILLENIUM. Só o prazo BASE entra nessa regra — desmembramentos (subprazo)
-// não são considerados aqui.
-const TERMOS_PRAZO_BASE_MILLENIUM = { "14": "ANTECIPADO", "9": "28 DIAS", "7": "35 DIAS", "5": "42 DIAS", "2": "56 DIAS", "0": "63 DIAS" };
+// aparece na aba MILLENIUM.
+const TERMOS_PRAZO_BASE_MILLENIUM = { 
+  "14": "ANTECIPADO", 
+  "9": "28 DIAS", 
+  "7": "35 DIAS", 
+  "5": "42 DIAS", 
+  "2": "56 DIAS", 
+  "0": "63 DIAS" 
+};
 
 // Retorna { preco, pctPrazoEfetivo } se este produto tiver regra MILLENIUM válida para o
 // prazo/ICMS/carrinho atuais, ou null se não se aplicar (nesse caso usa-se o preço normal da tabela).
@@ -43,7 +49,7 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   if (!m) return null;
 
   let termoAtual = normalizarTexto(TERMOS_PRAZO_BASE_MILLENIUM[String(prazoBase)] || '');
-  if (!termoAtual) return null;
+  let pctPrazoSelect = parseInt(prazoBase) || 0;
 
   // 1) Valor fixo (L/M/N) específico do ICMS atual — cada fixo tem seu próprio mínimo (0 = sem mínimo)
   let fixo = (icmsBase === '12') ? m.fixo12 : m.fixo7;
@@ -66,20 +72,24 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho) {
   let precoBase = (icmsBase === '12') ? m.precoIcms12 : m.precoIcms7;
   if (!precoBase || precoBase <= 0) return null;
 
-  for (let col of m.colunas) {
-    if (col.termo && normalizarTexto(col.termo) === termoAtual) {
-      return { preco: precoBase, pctPrazoEfetivo: (100 - col.pct) / 100 };
+  if (m.colunas && m.colunas.length > 0) {
+    for (let col of m.colunas) {
+      if (!col.termo) continue;
+      
+      let termoCol = normalizarTexto(col.termo);
+      // Verifica equivalência pelo termo do prazo ou pela igualdade direta da % de desconto
+      if (termoCol === termoAtual || col.pct === pctPrazoSelect) {
+        let pctAplicar = (col.pct !== undefined && col.pct !== null) ? col.pct : pctPrazoSelect;
+        return { preco: precoBase, pctPrazoEfetivo: (100 - pctAplicar) / 100 };
+      }
     }
   }
 
   return null;
 }
+
 // Retorna { preco, pctPrazoEfetivo } considerando prioridade:
 // Cliente Especial KNE825  >  Tabela Especial MILLENIUM  >  Tabela normal.
-// "preco" é o valor unitário base (mesmo papel que getPrecoFinal sempre teve);
-// "pctPrazoEfetivo" é o fator (0 a 1) a aplicar sobre esse preço para chegar no valor
-// líquido de prazo — normalmente é o desconto global do prazo selecionado, mas o
-// MILLENIUM pode fixar 1 (preço já pronto) ou um percentual próprio daquele item.
 function getInfoPrecoItem(produto, tabelaAtiva) {
   let uf = document.getElementById('uf-d') ? document.getElementById('uf-d').value : '';
   let prazoBase = document.getElementById('prazo-d') ? document.getElementById('prazo-d').value : '';
