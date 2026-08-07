@@ -51,15 +51,6 @@ function processarTabelaMillenium(dados) {
       let d63 = r[7];
       let icmVal = (r[8] !== undefined && r[8] !== '') ? r[8] : r[14];
 
-      // Compatibilidade para layouts alternativos
-      if (String(r[3]).includes('.') || (typeof parseValorNum === 'function' && parseValorNum(r[3]) > 100 && parseValorNum(r[4]) > 100)) {
-        minVal = r[3] || r[4];
-        antecipado = r[11];
-        d42 = r[12];
-        d63 = r[13];
-        icmVal = r[14] || r[8];
-      }
-
       let itemData = {
         minimo: minVal,
         antecipado: antecipado,
