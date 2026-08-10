@@ -210,20 +210,22 @@
         <label>UF Destino / Estado</label>
         <select id="uf-d" onchange="alterouUF('uf-d')"><option value="">Selecione o Estado...</option></select>
       </div>
-      <div class="field">
-        <label>Prazo de Pagamento Base</label>
-        <select id="prazo-d" onchange="alterouPrazoBase('prazo-d','prazo-m')">
-          <option value="14">Antecipado (-14%)</option>
-          <option value="9">28 dias (-9%)</option>
-          <option value="7">35 dias (-7%)</option>
-          <option value="5">42 dias (-5%)</option>
-          <option value="2">56 dias (-2%)</option>
-          <option value="0">63 dias (0%)</option>
-        </select>
-      </div>
-      <div class="field" id="wrapper-subprazo-d" style="display:none;">
-        <label>Opções de Desmembramento</label>
-        <select id="subprazo-d" onchange="syncRegras('subprazo-d','subprazo-m')"></select>
+      <div class="field-row">
+        <div class="field">
+          <label>Prazo de Pagamento Base</label>
+          <select id="prazo-d" onchange="alterouPrazoBase('prazo-d','prazo-m')">
+            <option value="14">Antecipado (-14%)</option>
+            <option value="9">28 dias (-9%)</option>
+            <option value="7">35 dias (-7%)</option>
+            <option value="5">42 dias (-5%)</option>
+            <option value="2">56 dias (-2%)</option>
+            <option value="0">63 dias (0%)</option>
+          </select>
+        </div>
+        <div class="field" id="wrapper-subprazo-d" style="display:none;">
+          <label>Opções de Desmembramento</label>
+          <select id="subprazo-d" onchange="syncRegras('subprazo-d','subprazo-m')"></select>
+        </div>
       </div>
     </div>
     <div class="painel-footer">
@@ -261,20 +263,22 @@
       <label>UF Destino / Estado</label>
       <select id="uf-m" onchange="alterouUF('uf-m')"><option value="">Selecione o Estado...</option></select>
     </div>
-    <div class="field">
-      <label>Prazo de Pagamento Base</label>
-      <select id="prazo-m" onchange="alterouPrazoBase('prazo-m','prazo-d')">
-        <option value="14">Antecipado (-14%)</option>
-        <option value="9">28 dias (-9%)</option>
-        <option value="7">35 dias (-7%)</option>
-        <option value="5">42 dias (-5%)</option>
-        <option value="2">56 dias (-2%)</option>
-        <option value="0">63 dias (0%)</option>
-      </select>
-    </div>
-    <div class="field" id="wrapper-subprazo-m" style="display:none;">
-      <label>Opções de Desmembramento</label>
-      <select id="subprazo-m" onchange="syncRegras('subprazo-m','subprazo-d')"></select>
+    <div class="field-row">
+      <div class="field">
+        <label>Prazo de Pagamento Base</label>
+        <select id="prazo-m" onchange="alterouPrazoBase('prazo-m','prazo-d')">
+          <option value="14">Antecipado (-14%)</option>
+          <option value="9">28 dias (-9%)</option>
+          <option value="7">35 dias (-7%)</option>
+          <option value="5">42 dias (-5%)</option>
+          <option value="2">56 dias (-2%)</option>
+          <option value="0">63 dias (0%)</option>
+        </select>
+      </div>
+      <div class="field" id="wrapper-subprazo-m" style="display:none;">
+        <label>Opções de Desmembramento</label>
+        <select id="subprazo-m" onchange="syncRegras('subprazo-m','subprazo-d')"></select>
+      </div>
     </div>
   </div>
   <div class="sh-footer">
