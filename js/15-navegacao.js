@@ -5,45 +5,13 @@
 // =============================================
 // SINCRONIZAÇÃO E EVENTOS DE PRAZO E UF
 // =============================================
-function alterouPrazoBase(idOrigem, idDestino) {
-  let elemOrigem = document.getElementById(idOrigem);
-  let elemDestino = document.getElementById(idDestino);
-  if (elemOrigem && elemDestino) {
-    elemDestino.value = elemOrigem.value;
-  }
-
-  if (typeof verificarModoEspecial === 'function') {
-    verificarModoEspecial();
-  }
-
-  // Re-renderiza o catálogo para atualizar instantaneamente os preços na tela
-  if (typeof renderizarProdutos === 'function') {
-    renderizarProdutos();
-  }
-
-  // Recalcula o subtotal e os totais do carrinho
-  if (typeof atualizarCarrinho === 'function') {
-    atualizarCarrinho();
-  }
-}
-
-function alterouUF(idOrigem, idDestino) {
-  let elemOrigem = document.getElementById(idOrigem);
-  let elemDestino = document.getElementById(idDestino);
-  if (elemOrigem && elemDestino) {
-    elemDestino.value = elemOrigem.value;
-  }
-
-  // Re-renderiza o catálogo para recalcular a alíquota de ICMS (7% vs 12%)
-  if (typeof renderizarProdutos === 'function') {
-    renderizarProdutos();
-  }
-
-  // Recalcula o carrinho com as novas condições da UF
-  if (typeof atualizarCarrinho === 'function') {
-    atualizarCarrinho();
-  }
-}
+// alterouPrazoBase() e alterouUF() NÃO ficam neste arquivo — a versão
+// válida é a de 10-carrinho.js (que também exibe/popula o dropdown de
+// "Opções de Desmembramento" / prazos médios via SUB_PRAZOS).
+// Havia uma duplicata dessas duas funções aqui, e como este arquivo é
+// carregado DEPOIS de 10-carrinho.js no index.html, a duplicata (que não
+// sabia nada do wrapper-subprazo-d/m) sobrescrevia a versão correta,
+// deixando o dropdown de prazos médios sempre escondido/vazio.
 
 // =============================================
 // MODAIS E BOTTOM SHEET
