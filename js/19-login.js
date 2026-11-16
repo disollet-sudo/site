@@ -79,8 +79,11 @@
     '.cl-item:hover{border-color:#1D9E75;background:#f4fbf8}' +
     '.cl-item b{display:block;color:#0f6e56;font-size:14px}' +
     '.cl-item span{display:block;color:#777;font-size:12px;line-height:1.5;margin-top:2px}' +
-    '.cl-cad{margin-top:12px;text-align:center;font-size:13px;color:#555}' +
-    '.cl-cad a{color:#1D9E75;font-weight:bold;text-decoration:underline;cursor:pointer}' +
+    '.cl-cad{margin-top:16px;padding:14px;border:2px solid #1D9E75;background:#E1F5EE;border-radius:10px;text-align:center;font-size:15px;color:#0f6e56}' +
+    '.cl-cad b{display:block;margin-bottom:8px}' +
+    '.cl-cad a{display:inline-block;background:#1D9E75;color:#fff;font-weight:bold;font-size:15px;padding:10px 22px;border-radius:8px;cursor:pointer;text-decoration:none}' +
+    // tela de pedido: sem os botões Edição (importar PDF), Cadastrar e Clientes
+    '.icons-actions button[onclick^="abrirModalUpload"],.icons-actions button[onclick^="abrirModalNovoCliente"],.icons-actions button[onclick^="abrirModalBuscarCliente"]{display:none!important}' +
     '.cl-and{background:#E1F5EE;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#0f6e56;text-align:center}' +
     '.cl-and button.lg-btn{margin-top:8px;padding:9px;font-size:14px}' +
     '#btn-voltar-painel{position:fixed;left:10px;bottom:10px;z-index:900;padding:9px 14px;border:0;border-radius:20px;background:#1D9E75;color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}';
@@ -328,7 +331,7 @@
       '<div class="cl-busca"><input id="cl-busca" placeholder="CNPJ, nome, fantasia ou cidade" autocomplete="off">' +
       '<button class="lg-btn" id="cl-buscar">Buscar</button></div>' +
       '<div class="cl-msg" id="cl-msg"></div><div id="cl-lista"></div>' +
-      '<div class="cl-cad" id="cl-cad" style="display:none">Não achou seu cliente? <a id="cl-cad-link">Cadastre seu cliente</a></div>' +
+      '<div class="cl-cad" id="cl-cad"><b>Não localizou seu cliente?</b><a id="cl-cad-link">➕ Cadastre aqui</a></div>' +
       '<button class="lg-btn lg-sec" id="cl-voltar">← Voltar ao painel</button></div></div>');
     document.body.appendChild(t);
 
