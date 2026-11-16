@@ -4,14 +4,12 @@
    salvos no localStorage do navegador.
    Depende de: 01-estado-global.js
    ============================================= */
-
 function configurarPersistenciaCliente() {
   CAMPOS_CLIENTE_FORM.forEach(f => {
     let el = document.getElementById('cli-' + f);
     if (el) el.addEventListener('input', salvarClienteLocal);
   });
 }
-
 function salvarCarrinhoLocal() {
   if (RESTAURANDO_ESTADO) return;
   try {
@@ -20,7 +18,6 @@ function salvarCarrinhoLocal() {
     localStorage.setItem(LS_CARRINHO, JSON.stringify(simples));
   } catch (e) {}
 }
-
 function salvarClienteLocal() {
   if (RESTAURANDO_ESTADO) return;
   try {
@@ -32,7 +29,6 @@ function salvarClienteLocal() {
     localStorage.setItem(LS_CLIENTE, JSON.stringify(obj));
   } catch (e) {}
 }
-
 function salvarConfigLocal() {
   if (RESTAURANDO_ESTADO) return;
   try {
@@ -44,10 +40,8 @@ function salvarConfigLocal() {
     localStorage.setItem(LS_CONFIG, JSON.stringify(obj));
   } catch (e) {}
 }
-
 function restaurarEstadoLocal() {
   RESTAURANDO_ESTADO = true;
-
   // 1) Restaura UF e prazo (precisa vir antes do carrinho para os preços baterem)
   try {
     let cfg = JSON.parse(localStorage.getItem(LS_CONFIG) || 'null');
@@ -71,7 +65,6 @@ function restaurarEstadoLocal() {
       }
     }
   } catch (e) {}
-
   // 2) Restaura dados do cliente digitados
   try {
     let cli = JSON.parse(localStorage.getItem(LS_CLIENTE) || 'null');
@@ -81,9 +74,9 @@ function restaurarEstadoLocal() {
         if (el && cli[f]) el.value = cli[f];
       });
       if (cli.cnpj) ativarClienteKNE825(cli.cnpj);
+      atualizarBotaoMix();
     }
   } catch (e) {}
-
   // 3) Restaura o carrinho (depende do catálogo já carregado em PRODUTOS)
   try {
     let carr = JSON.parse(localStorage.getItem(LS_CARRINHO) || 'null');
@@ -96,11 +89,9 @@ function restaurarEstadoLocal() {
       if (restaurados > 0) showToast(`🛒 Carrinho restaurado (${restaurados} item(ns))`);
     }
   } catch (e) {}
-
   RESTAURANDO_ESTADO = false;
   calcularTudo();
 }
-
 function limparEstadoLocal() {
   try {
     localStorage.removeItem(LS_CARRINHO);
