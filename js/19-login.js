@@ -84,6 +84,15 @@
     '.cl-cad a{display:inline-block;background:#1D9E75;color:#fff;font-weight:bold;font-size:15px;padding:10px 22px;border-radius:8px;cursor:pointer;text-decoration:none}' +
     // tela de pedido: sem os botões Edição (importar PDF), Cadastrar e Clientes
     '.icons-actions button[onclick^="abrirModalUpload"],.icons-actions button[onclick^="abrirModalNovoCliente"],.icons-actions button[onclick^="abrirModalBuscarCliente"]{display:none!important}' +
+    // Orçamento sai da tela de pedido (agora é "Meus orçamentos" no painel)
+    '.icons-actions button[onclick^="abrirModalOrcamentos"]{display:none!important}' +
+    '#modal-orcamentos{z-index:100001!important}' +
+    // aviso depois de escolher o cliente
+    '#aviso-itens{position:fixed;inset:0;z-index:100002;background:rgba(0,0,0,.45);display:flex;padding:16px;box-sizing:border-box;font-family:Arial,sans-serif}' +
+    '#aviso-itens .av-box{background:#fff;border-radius:12px;padding:28px;width:100%;max-width:340px;margin:auto;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.2)}' +
+    '#aviso-itens h2{color:#0f6e56;font-size:20px;margin:6px 0 8px}' +
+    '#aviso-itens p{color:#555;font-size:14px;margin:0 0 18px}' +
+    '#aviso-itens button{width:100%;padding:12px;border:0;border-radius:8px;background:#1D9E75;color:#fff;font-size:15px;font-weight:bold;cursor:pointer}' +
     '.cl-and{background:#E1F5EE;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#0f6e56;text-align:center}' +
     '.cl-and button.lg-btn{margin-top:8px;padding:9px;font-size:14px}' +
     '#btn-voltar-painel{position:fixed;left:10px;bottom:10px;z-index:900;padding:9px 14px;border:0;border-radius:20px;background:#1D9E75;color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}';
@@ -413,10 +422,14 @@
     b.textContent = 'Iniciar pedido';
     var original = b.onclick;
     b.onclick = function () {
-      try { if (original) original.call(b); } catch (e) { console.warn('Ficha do cliente:', e); }
+      try { if (original) original.call(b); } catch (e) { console.warn('Ficha do cliente:', e); }  // preenche os dados do cliente, UF e preços
       fichaAberta = false;
+      if (window.fecharModalDetalhesCliente) window.fecharModalDetalhesCliente();
+      var m = document.getElementById('modal-detalhes-cliente');
+      if (m) m.classList.remove('open');
       limpar('tela-cliente');
       abrirPedido();
+      avisoItens();
     };
   }
 
@@ -474,6 +487,41 @@
     }
   };
 
+  // Aviso que aparece por cima do catálogo depois de "Iniciar pedido"
+  function avisoItens() {
+    limpar('aviso-itens');
+    var a = el('<div id="aviso-itens"><div class="av-box"><div style="font-size:42px">🛒</div>' +
+      '<h2>Cliente selecionado!</h2><p>Agora adicione os itens do seu pedido.</p>' +
+      '<button id="av-ok">OK</button></div></div>');
+    document.body.appendChild(a);
+    document.getElementById('av-ok').onclick = function () { limpar('aviso-itens'); };
+  }
+
+  // ---------- meus orçamentos (abre a lista que o app já tem, por cima do painel) ----------
+  var orcAberto = false, assinaturaAntes = '';
+  function assinaturaPedido() {
+    var k = '';
+    try { k = Object.keys(SELECIONADOS).sort().map(function (c) { return c + ':' + SELECIONADOS[c].qtd; }).join(','); } catch (e) {}
+    var c = document.getElementById('cli-cnpj');
+    return k + '|' + (c ? c.value : '');
+  }
+  function abrirOrcamentos() {
+    if (typeof abrirModalOrcamentos !== 'function') { alert('Orçamentos indisponíveis.'); return; }
+    orcAberto = true;
+    assinaturaAntes = assinaturaPedido();
+    abrirModalOrcamentos();
+  }
+  // Se ao fechar a lista o carrinho/cliente mudou (escolheu um orçamento), leva para a tela de pedido
+  var fecharOrcOriginal = window.fecharModalOrcamentos;
+  window.fecharModalOrcamentos = function () {
+    if (fecharOrcOriginal) fecharOrcOriginal.apply(this, arguments);
+    if (!orcAberto) return;
+    orcAberto = false;
+    setTimeout(function () {
+      if (assinaturaPedido() !== assinaturaAntes && document.body.classList.contains('fora-do-pedido')) abrirPedido();
+    }, 800);
+  };
+
   // ---------- painel ----------
   function fazerPedido() {
     var sess = getSessao();
@@ -487,7 +535,7 @@
   var MENU = [
     { icone: '🛒', titulo: 'Fazer pedido', desc: 'Localize o cliente, monte o carrinho e envie o pedido', acao: fazerPedido },
     { icone: '📦', titulo: 'Meus pedidos', desc: 'Acompanhe os pedidos enviados', acao: null },
-    { icone: '🧾', titulo: 'Meus orçamentos', desc: 'Orçamentos salvos', acao: null }
+    { icone: '🧾', titulo: 'Meus orçamentos', desc: 'Orçamentos salvos para continuar editando', acao: abrirOrcamentos }
   ];
 
   function mostrarPainel() {
