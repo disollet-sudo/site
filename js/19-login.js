@@ -92,6 +92,11 @@
         localStorage.removeItem('repre_cod');
       }
     } catch (e) {}
+    // Representante com código fixo: garante que o modal antigo de código não fique aberto
+    if (CODIGO_REPRE) {
+      var mr = document.getElementById('modal-repre');
+      if (mr) { mr.style.display = 'none'; mr.classList.remove('open'); }
+    }
     var trocar = document.querySelector('#info-repre-box button');
     if (trocar) trocar.style.display = ehRepre ? 'none' : '';
     if (CODIGO_REPRE && typeof atualizarExibicaoRepre === 'function') atualizarExibicaoRepre();
