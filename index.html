@@ -99,6 +99,7 @@
       <div class="field"><label>Município (Cidade)</label><input type="text" id="nc-municipio"></div>
       <div class="field"><label>Número</label><input type="text" id="nc-numero"></div>
       <div class="field"><label>CEP</label><input type="text" id="nc-cep"></div>
+      <div class="field"><label>E-mail *</label><input type="email" id="nc-email" placeholder="email@cliente.com"></div>
     </div>
     <button class="btn prim" id="btn-salvar-nc" onclick="salvarNovoCliente()">Salvar Cliente</button>
     <button class="btn" style="margin-bottom:0;" onclick="fecharModalNovoCliente()">Cancelar</button>
@@ -125,6 +126,14 @@
     <div class="scroll-form" id="conteudo-detalhes-cliente" style="font-size:13px;line-height:1.6;background:#f9f9f9;padding:12px;border-radius:8px;border:1px solid var(--borda);"></div>
     <button class="btn prim" id="btn-selecionar-cliente-busca" style="margin-top:12px;display:none;">🛒 Fazer Pedido</button>
     <button class="btn" style="margin-bottom:0;" onclick="fecharModalDetalhesCliente()">Voltar para a Busca</button>
+  </div>
+</div>
+
+<div class="modal" id="modal-mix" onclick="if(event.target===this) fecharModalMix()">
+  <div class="modal-box" style="padding:24px;max-width:460px;max-height:90vh;">
+    <h3 style="margin-bottom:12px;color:var(--verde-dk);font-size:16px;text-align:center;">📊 Mix do Cliente</h3>
+    <div class="scroll-form" id="conteudo-mix-cliente" style="font-size:13px;line-height:1.6;"></div>
+    <button class="btn" style="margin-bottom:0;margin-top:12px;" onclick="fecharModalMix()">Fechar</button>
   </div>
 </div>
 
@@ -190,6 +199,7 @@
         <button class="btn-icon-label" onclick="abrirModalNovoCliente()" title="Cadastrar novo cliente">➕ Cadastrar</button>
         <button class="btn-icon-label" onclick="abrirModalBuscarCliente()" title="Buscar cliente cadastrado">👥 Clientes</button>
         <button class="btn-icon-label btn-icon-badge" onclick="abrirModalOrcamentos()" title="Meus Orçamentos">🧾 Orçamento<span id="badge-orcamentos" class="badge-orc" style="display:none;">0</span></button>
+        <button class="btn-icon-label" id="btn-mix-cliente" onclick="abrirModalMix()" title="Ver histórico de compras deste cliente" style="display:none;">📊 Mix</button>
       </span>
       <span style="font-size:12px;color:var(--sub)" id="cont"></span>
       <button class="btn-lim btn-sync" id="btn-sync" onclick="sincronizarPlanilha()">🔄 Sincronizar Catálogo</button>
@@ -235,6 +245,7 @@
         <div class="res-row"><span>Desc. Prazo (<span id="rd-prazo-pct">0</span>%):</span><b id="rd-prazo-val" style="color:#c0392b;">- R$ 0,00</b></div>
         <div class="res-row"><span>Valor Total IPI (+):</span><b id="rd-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
         <div class="res-row"><span>Valor Frete:</span><b id="rd-frete-val">R$ 0,00</b></div>
+        <div class="res-row"><span>Cód. Transportadora:</span><b id="rd-transportadora">-</b></div>
         <div class="res-sep"></div>
         <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rd-total">R$ 0,00</b></div>
       </div>
@@ -276,7 +287,7 @@
         </select>
       </div>
       <div class="field" id="wrapper-subprazo-m" style="display:none;">
-        <label>Opções de Desmembramento</label>
+        <label>Desmembramento</label>
         <select id="subprazo-m" onchange="syncRegras('subprazo-m','subprazo-d')"></select>
       </div>
     </div>
@@ -288,6 +299,7 @@
       <div class="res-row"><span>Desc. Prazo (<span id="rm-prazo-pct">0</span>%):</span><b id="rm-prazo-val" style="color:#c0392b;">- R$ 0,00</b></div>
       <div class="res-row"><span>Valor Total IPI (+):</span><b id="rm-ipi-val" style="color:#2980b9;">+ R$ 0,00</b></div>
       <div class="res-row"><span>Valor Frete:</span><b id="rm-frete-val">R$ 0,00</b></div>
+      <div class="res-row"><span>Cód. Transportadora:</span><b id="rm-transportadora">-</b></div>
       <div class="res-sep"></div>
       <div class="res-row" style="font-size:15px"><span>TOTAL LÍQUIDO:</span><b id="rm-total">R$ 0,00</b></div>
     </div>
@@ -388,6 +400,8 @@
 <script src="js/13-upload-importar-pdf.js?v=20260807-2"></script>
 <script src="js/14-orcamentos.js?v=20260807-2"></script>
 <script src="js/15-navegacao.js?v=20260807-2"></script>
+<script src="js/17-mix-cliente.js?v=20260807-2"></script>
+<script src="js/18-suporte.js?v=20260807-2"></script>
 <script src="js/16-init.js?v=20260807-2"></script>
 </body>
 </html>
