@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Suporte ao vivo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/rrweb@1.1.3/dist/rrweb.min.css">
+<style>
+  :root{--ink:#1b2430;--muted:#5a6676;--line:#d5dae1;--bg:#f3f4f6;--ok:#0f766e;--alerta:#e11d74}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+  header{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--ink);color:#fff}
+  header h1{margin:0;font-size:17px}
+  button{font:inherit;font-weight:600;cursor:pointer;border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:8px 12px}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.on{background:var(--ok);border-color:var(--ok);color:#fff}
+  header button{background:transparent;color:#fff;border-color:rgba(255,255,255,.4)}
+  main{max-width:960px;margin:0 auto;padding:16px}
+  section[hidden],[hidden]{display:none!important}
+  #login{max-width:340px;margin:48px auto;display:grid;gap:10px}
+  #login input{padding:10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  #erro{color:var(--alerta);min-height:1.2em;margin:0}
+  #itens{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+  #itens li{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-left:4px solid var(--line);border-radius:8px;padding:12px 14px}
+  #itens li.vivo{border-left-color:var(--ok)}
+  #itens small{display:block;color:var(--muted)}
+  .barra{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+  .barra .grupo{display:flex;gap:0}
+  #rs{margin-left:auto}
+  .barra .grupo button:first-child{border-radius:8px 0 0 8px}
+  .barra .grupo button:last-child{border-radius:0 8px 8px 0;border-left:0}
+  #status{color:var(--muted)}
+  #txt{flex:1;min-width:160px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  #caixa{position:relative;margin:0 auto;background:#fff;border:1px solid var(--line);width:320px;height:200px}
+  #stage{position:absolute;inset:0;overflow:hidden}
+  #overlay{position:absolute;inset:0;z-index:5;touch-action:none;cursor:crosshair}
+  #espera{position:absolute;inset:0;display:grid;place-items:center;margin:0;color:var(--muted);z-index:6;pointer-events:none}
+</style>
+</head>
+<body>
+<header><h1>Suporte ao vivo</h1><button id="sair" hidden>Sair</button></header>
+<main>
+  <section id="login">
+    <h2 style="margin:0">Entrar</h2>
+    <form id="form" style="display:grid;gap:10px">
+      <input id="email" type="email" placeholder="E-mail" autocomplete="username" required>
+      <input id="senha" type="password" placeholder="Senha" autocomplete="current-password" required>
+      <button class="on" type="submit">Entrar</button>
+      <p id="erro"></p>
+    </form>
+  </section>
+
+  <section id="lista" hidden>
+    <h2 style="margin-top:0">Pedidos de ajuda</h2>
+    <ul id="itens"></ul>
+    <p id="vazio" style="color:var(--muted)">Nenhum pedido de ajuda no momento.</p>
+  </section>
+
+  <section id="tela" hidden>
+    <div class="barra">
+      <button id="voltar">Voltar</button>
+      <strong id="quem"></strong>
+      <span id="status"></span>
+      <button id="rs" title="Pede ao app uma foto nova da tela">Atualizar tela</button>
+      <div class="grupo">
+        <button id="m-apontar" class="on">Apontar</button>
+        <button id="m-controlar">Controlar</button>
+      </div>
+    </div>
+    <div class="barra" id="digitar" hidden>
+      <input id="txt" type="text" placeholder="Texto para o campo selecionado (em listas, escolhe a opção que começa com ele)">
+      <button id="env">Enviar texto</button>
+      <button id="apg">Apagar</button>
+    </div>
+    <div id="caixa">
+      <div id="stage"></div>
+      <div id="overlay"></div>
+      <p id="espera">Aguardando a tela do usuário…</p>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/rrweb@1.1.3/dist/rrweb.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script>
+// ===== CONFIGURAR (Firebase > Configurações do projeto > Seus apps) =====
+var CFG = {
+  apiKey: 'AIzaSyCp8PDPs0zoZVPbzHDOyH4SdvgA_QR0-34',
+  authDomain: 'disolle-suporte.firebaseapp.com',
+  databaseURL: 'https://disolle-suporte-default-rtdb.firebaseio.com',
+  projectId: 'disolle-suporte',
+  appId: '1:677768149898:web:e77539bd2b09836293a673'
+};
+// =======================================================================
+firebase.initializeApp(CFG);
+var auth = firebase.auth(), db = firebase.database();
+var $ = function (id) { return document.getElementById(id); };
+var off = 0, metas = {}, cur = null, rp = null, refEv = null, refMeta = null, modo = 'apontar', tPtr = 0, dn = null;
+var ov = $('overlay');
+
+db.ref('.info/serverTimeOffset').on('value', function (s) { off = s.val() || 0; });
+function agora() { return Date.now() + off; }
+
+// ---------- login e lista ----------
+$('form').onsubmit = function (e) {
+  e.preventDefault(); $('erro').textContent = '';
+  auth.signInWithEmailAndPassword($('email').value, $('senha').value)
+    .catch(function () { $('erro').textContent = 'E-mail ou senha incorretos.'; });
+};
+$('sair').onclick = function () { auth.signOut(); };
+
+auth.onAuthStateChanged(function (u) {
+  $('login').hidden = !!u; $('sair').hidden = !u;
+  if (!u) { fechar(); $('lista').hidden = true; $('tela').hidden = true; db.ref('suporte/meta').off(); return; }
+  $('lista').hidden = false;
+  db.ref('suporte/meta').on('value', function (s) { metas = s.val() || {}; renderLista(); },
+    function () { $('vazio').hidden = false; $('vazio').textContent = 'Este usuário não tem permissão para ver os pedidos.'; });
+});
+
+function fmt(seg) { return seg < 60 ? seg + ' s' : seg < 3600 ? Math.round(seg / 60) + ' min' : Math.round(seg / 3600) + ' h'; }
+
+function renderLista() {
+  var ul = $('itens'); ul.innerHTML = '';
+  var ids = Object.keys(metas).sort(function (a, b) { return (metas[b].vistoEm || 0) - (metas[a].vistoEm || 0); });
+  $('vazio').hidden = ids.length > 0;
+  if (ids.length === 0) $('vazio').textContent = 'Nenhum pedido de ajuda no momento.';
+  ids.forEach(function (id) {
+    var m = metas[id], seg = Math.max(0, Math.round((agora() - (m.vistoEm || 0)) / 1000)), vivo = seg < 30;
+    var li = document.createElement('li'); li.className = vivo ? 'vivo' : '';
+    li.innerHTML = '<div><b></b><small></small></div><button type="button">Ver tela</button>';
+    li.querySelector('b').textContent = m.nome || 'Sem nome';
+    li.querySelector('small').textContent = 'Código ' + (m.codigo || '') + ', ' + (vivo ? 'ao vivo' : 'visto há ' + fmt(seg)) + ', tela ' + (m.tela || '');
+    li.querySelector('button').onclick = function () { abrir(id); };
+    ul.appendChild(li);
+  });
+}
+setInterval(renderLista, 5000);
+
+// ---------- ver a tela ----------
+function abrir(id) {
+  fechar();
+  cur = { sid: id, scale: 1, vw: 0, vh: 0, ts: 0, fila: Promise.resolve(), acc: { dx: 0, dy: 0, x: 0, y: 0 } };
+  $('lista').hidden = true; $('tela').hidden = false; $('espera').hidden = false;
+  setModo('apontar');
+  rp = new rrweb.Replayer([], { root: $('stage'), liveMode: true, mouseTail: false, showWarning: true });
+  rp.on('resize', function (d) { cur.vw = d.width; cur.vh = d.height; $('espera').hidden = true; ajustar(); });
+  rp.startLive(Date.now());
+
+  refEv = db.ref('suporte/ev/' + id);
+  refEv.on('child_added', function (s) {
+    var v = s.val(); if (!v || !v.e || !cur) return;
+    var f = cur; // a fila mantém a ordem dos lotes mesmo com a descompressão assíncrona
+    f.fila = f.fila.then(function () { return descomprimir(v); }).then(function (txt) {
+      if (cur !== f || !rp) return;
+      JSON.parse(txt).forEach(function (ev) {
+        f.ts = Math.max(Date.now(), f.ts + 1); // relógio do aparelho do usuário pode estar diferente: usa o daqui
+        ev.timestamp = f.ts;
+        rp.addEvent(ev);
+      });
+    }).catch(function () {});
+  });
+
+  refMeta = db.ref('suporte/meta/' + id);
+  refMeta.on('value', function (s) {
+    var m = s.val();
+    if (!m) { $('status').textContent = 'Sessão encerrada'; db.ref('suporte/cmd/' + id).remove(); return; }
+    $('quem').textContent = (m.nome || 'Sem nome') + ' (' + (m.codigo || '') + ')';
+    var ok = !!m.controle;
+    $('m-controlar').disabled = !ok;
+    if (!ok && modo === 'controlar') setModo('apontar');
+    $('status').textContent = ok ? 'Controle liberado pelo usuário' : 'Só apontar: o usuário não liberou o controle';
+  });
+}
+
+function descomprimir(v) {
+  if (!v.z) return Promise.resolve(v.e);
+  var bin = atob(v.e), b = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) b[i] = bin.charCodeAt(i);
+  var ds = new DecompressionStream('gzip'), w = ds.writable.getWriter();
+  w.write(b); w.close();
+  return new Response(ds.readable).text();
+}
+
+function fechar() {
+  if (refEv) refEv.off(); if (refMeta) refMeta.off();
+  refEv = refMeta = null;
+  if (rp) { try { rp.destroy(); } catch (e) {} rp = null; }
+  $('stage').innerHTML = ''; cur = null; dn = null;
+}
+
+$('voltar').onclick = function () { fechar(); $('tela').hidden = true; $('lista').hidden = false; };
+
+function ajustar() {
+  if (!rp || !cur || !cur.vw) return;
+  var maxW = $('tela').clientWidth, maxH = Math.max(240, window.innerHeight - 170);
+  var s = Math.min(maxW / cur.vw, maxH / cur.vh, 1.25);
+  cur.scale = s;
+  rp.wrapper.style.transformOrigin = '0 0';
+  rp.wrapper.style.transform = 'scale(' + s + ')';
+  $('caixa').style.width = Math.round(cur.vw * s) + 'px';
+  $('caixa').style.height = Math.round(cur.vh * s) + 'px';
+}
+window.addEventListener('resize', ajustar);
+
+// ---------- apontar e controlar ----------
+function setModo(m) {
+  modo = m;
+  $('m-apontar').classList.toggle('on', m === 'apontar');
+  $('m-controlar').classList.toggle('on', m === 'controlar');
+  $('digitar').hidden = m !== 'controlar';
+  ov.style.cursor = m === 'controlar' ? 'pointer' : 'crosshair';
+}
+$('m-apontar').onclick = function () { setModo('apontar'); };
+$('m-controlar').onclick = function () { setModo('controlar'); };
+
+function cmd(tipo, extra) {
+  if (!cur) return;
+  var a = { tipo: tipo }; for (var k in extra) a[k] = extra[k];
+  db.ref('suporte/cmd/' + cur.sid + '/acoes').push(a);
+}
+function ptr(x, y) { if (cur) db.ref('suporte/cmd/' + cur.sid + '/ptr').set({ x: x, y: y }); }
+function pos(e) {
+  var r = ov.getBoundingClientRect();
+  return { x: Math.round((e.clientX - r.left) / cur.scale), y: Math.round((e.clientY - r.top) / cur.scale) };
+}
+
+ov.addEventListener('pointerdown', function (e) {
+  if (!cur || !cur.vw) return;
+  ov.setPointerCapture(e.pointerId);
+  var p = pos(e);
+  dn = { x: e.clientX, y: e.clientY, lx: e.clientX, ly: e.clientY, mov: false };
+  ptr(p.x, p.y);
+  if (modo === 'apontar') cmd('anel', p);
+});
+ov.addEventListener('pointermove', function (e) {
+  if (!cur || !cur.vw) return;
+  if (modo === 'controlar' && dn) {
+    if (Math.hypot(e.clientX - dn.x, e.clientY - dn.y) > 8) dn.mov = true;
+    if (dn.mov) {
+      var p = pos(e);
+      cur.acc.dx += (dn.lx - e.clientX) / cur.scale; cur.acc.dy += (dn.ly - e.clientY) / cur.scale;
+      cur.acc.x = p.x; cur.acc.y = p.y;
+    }
+    dn.lx = e.clientX; dn.ly = e.clientY;
+  }
+  var t = Date.now();
+  if (t - tPtr > 50) { tPtr = t; var q = pos(e); ptr(q.x, q.y); }
+});
+ov.addEventListener('pointerup', function (e) {
+  if (!cur || !dn) return;
+  if (modo === 'controlar' && !dn.mov) cmd('clique', pos(e));
+  dn = null;
+  if (e.pointerType === 'touch') ptr(-1, -1);
+});
+ov.addEventListener('pointerleave', function () { if (cur && !dn) ptr(-1, -1); });
+ov.addEventListener('wheel', function (e) {
+  if (modo !== 'controlar' || !cur) return;
+  e.preventDefault();
+  var p = pos(e);
+  cur.acc.dx += e.deltaX / cur.scale; cur.acc.dy += e.deltaY / cur.scale; cur.acc.x = p.x; cur.acc.y = p.y;
+}, { passive: false });
+
+setInterval(function () { // junta a rolagem em pacotes para não encher o banco de mensagens
+  if (!cur) return;
+  var a = cur.acc;
+  if (Math.abs(a.dx) < 1 && Math.abs(a.dy) < 1) return;
+  cmd('rolar', { x: a.x, y: a.y, dx: Math.round(a.dx), dy: Math.round(a.dy) });
+  a.dx = a.dy = 0;
+}, 90);
+
+$('env').onclick = function () {
+  Array.from($('txt').value).forEach(function (c) { cmd('tecla', { k: c }); });
+  $('txt').value = '';
+};
+$('txt').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('env').click(); });
+$('rs').onclick = function () { cmd('resync', {}); };
+$('apg').onclick = function () { cmd('tecla', { k: 'Backspace' }); };
+</script>
+</body>
+</html>
