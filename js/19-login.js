@@ -1,9 +1,11 @@
 /* =============================================
    Di Solle — 19. LOGIN + PAINEL INICIAL
    Tela de login (usuário/senha da aba "Usuarios"), painel-menu com
-   boas-vindas e meta mensal, e controle de acesso ao catálogo de pedidos.
+   boas-vindas e meta mensal, tela "Localize seu cliente" (antes do
+   pedido) e controle de acesso ao catálogo de pedidos.
    Carregar ANTES do 16-init.js.
-   Depende de: 01-estado-global.js, 04-representante.js
+   Depende de: 01-estado-global.js, 04-representante.js,
+               05-utils-busca.js, 11-clientes.js
    ============================================= */
 
 (function () {
@@ -35,7 +37,7 @@
     // o modal antigo "Informe seu Código de Representante" não é mais usado (o login já identifica o usuário)
     '#modal-repre{display:none!important}' +
     'body.fora-do-pedido header,body.fora-do-pedido .filtros,body.fora-do-pedido .main,body.fora-do-pedido .mob-bar{display:none!important}' +
-    '#tela-login,#tela-painel,#tela-escolha{position:fixed;inset:0;z-index:99999;background:#f4f6f5;display:flex;overflow:auto;font-family:Arial,sans-serif;padding:16px;box-sizing:border-box}' +
+    '#tela-login,#tela-painel,#tela-escolha,#tela-cliente{position:fixed;inset:0;z-index:99999;background:#f4f6f5;display:flex;overflow:auto;font-family:Arial,sans-serif;padding:16px;box-sizing:border-box}' +
     '#tela-escolha{z-index:100000;background:rgba(0,0,0,.45)}' +
     '.lg-card{background:#fff;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.08);padding:28px;width:100%;max-width:380px;margin:auto;box-sizing:border-box}' +
     '.lg-logo{display:block;margin:0 auto 14px;max-height:56px}' +
@@ -66,6 +68,21 @@
     '#es-lista{max-height:50vh;overflow:auto}' +
     '.es-item{display:flex;justify-content:space-between;gap:10px;padding:10px 12px;border:1px solid #e3e3e3;border-radius:8px;margin-bottom:8px;cursor:pointer;font-size:14px}' +
     '.es-item:hover{border-color:#1D9E75;background:#f4fbf8}.es-item.off{opacity:.5;cursor:default}.es-item span{color:#888}' +
+    // localizar cliente
+    '.cl-busca{display:flex;gap:8px;margin-bottom:10px}' +
+    '.cl-busca input{flex:1;margin-bottom:0;min-width:0}' +
+    '.cl-busca button.lg-btn{width:auto;padding:0 20px}' +
+    '.cl-msg{font-size:13px;color:#0f6e56;font-weight:bold;margin:4px 0 10px;text-align:center;min-height:16px}' +
+    '.cl-msg.cl-aviso{color:#8a5a00}' +
+    '#cl-lista{max-height:46vh;overflow:auto}' +
+    '.cl-item{padding:10px 12px;border:1px solid #e3e3e3;border-radius:8px;margin-bottom:8px;cursor:pointer}' +
+    '.cl-item:hover{border-color:#1D9E75;background:#f4fbf8}' +
+    '.cl-item b{display:block;color:#0f6e56;font-size:14px}' +
+    '.cl-item span{display:block;color:#777;font-size:12px;line-height:1.5;margin-top:2px}' +
+    '.cl-cad{margin-top:12px;text-align:center;font-size:13px;color:#555}' +
+    '.cl-cad a{color:#1D9E75;font-weight:bold;text-decoration:underline;cursor:pointer}' +
+    '.cl-and{background:#E1F5EE;border-radius:8px;padding:12px;margin-bottom:14px;font-size:13px;color:#0f6e56;text-align:center}' +
+    '.cl-and button.lg-btn{margin-top:8px;padding:9px;font-size:14px}' +
     '#btn-voltar-painel{position:fixed;left:10px;bottom:10px;z-index:900;padding:9px 14px;border:0;border-radius:20px;background:#1D9E75;color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}';
   document.head.appendChild(css);
 
@@ -143,7 +160,7 @@
 
   // ---------- login ----------
   function mostrarLogin() {
-    limpar('tela-painel'); limpar('tela-escolha');
+    limpar('tela-painel'); limpar('tela-escolha'); limpar('tela-cliente');
     botaoVoltar(false);
     document.body.classList.add('fora-do-pedido');
     var t = el(
@@ -215,7 +232,7 @@
           marcarRepre(r);
           definirRepre(r.codigoRepre);
           limpar('tela-escolha');
-          abrirPedido();
+          abrirClientes();
         };
         lista.appendChild(d);
       });
@@ -237,18 +254,235 @@
     if (s && s.usuario.perfil !== 'REPRESENTANTE') abrirEscolha();
   };
 
+  // =============================================
+  // LOCALIZAR CLIENTE (tela que vem antes do pedido)
+  // Usa a base CLIENTES e a ficha do cliente (modal-detalhes-cliente) que
+  // o app já tem. O botão da ficha passa a se chamar "Iniciar pedido".
+  // =============================================
+  var fichaAberta = false;     // true enquanto a ficha do cliente está aberta por cima desta tela
+  var cadastrando = false;     // true enquanto o cadastro de novo cliente está aberto por cima desta tela
+  var totalAntesCadastro = 0;
+
+  function telaCliente() { return document.getElementById('tela-cliente'); }
+  function soDig(s) { return String(s || '').replace(/\D/g, ''); }
+
+  function fmtDoc(s) {
+    var k = chaveDoc(s);
+    if (k.length === 14) return k.replace(/^([0-9A-Z]{2})([0-9A-Z]{3})([0-9A-Z]{3})([0-9A-Z]{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    if (k.length === 11 && /^\d+$/.test(k)) return k.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+    return String(s || '');
+  }
+
+  // Mesma regra de busca da "Pesquisa Geral de Clientes" do app
+  function procurarClientes(v) {
+    var termoNorm = normalizarTexto(v);
+    var termoDigitos = soDig(v);
+    var termoDoc = normDoc(v);
+    var buscaNumerica = termoDigitos.length >= 3 && !/[a-zA-Z]/.test(v);
+    var buscaAlfa = !/\s/.test(v) && /^[0-9A-Za-z.\-\/]+$/.test(v) &&
+                    /^[0-9A-Z]{12}\d{2}$/.test(termoDoc) && /[A-Z]/.test(termoDoc);
+    var tokens = termoNorm.split(/\s+/).filter(Boolean);
+
+    var achados = CLIENTES.filter(function (c) {
+      var cnpjDig = soDig(c.cnpj), cnpjChave = chaveDoc(c.cnpj);
+      if (buscaNumerica) {
+        return cnpjDig.indexOf(termoDigitos) >= 0 || cnpjChave.indexOf(termoDigitos) >= 0 || soDig(c.telefone).indexOf(termoDigitos) >= 0;
+      }
+      if (buscaAlfa) return cnpjChave === termoDoc;
+      var txt = normalizarTexto([c.fantasia, c.razao, c.municipio, c.estado, c.bairro, c.email].join(' '));
+      return tokens.every(function (t) {
+        if (txt.indexOf(t) >= 0) return true;
+        var dt = soDig(t);
+        return !/[a-zA-Z]/.test(t) && dt.length >= 3 && cnpjDig.indexOf(dt) >= 0;
+      });
+    });
+
+    var aproximado = false;
+    if (achados.length === 0 && !buscaNumerica && !buscaAlfa) {
+      achados = CLIENTES.filter(function (c) { return buscaInteligente([c.fantasia, c.razao, c.municipio], v); });
+      aproximado = true;
+    }
+
+    var pontos = function (c) {
+      var f = normalizarTexto(c.fantasia), r = normalizarTexto(c.razao);
+      if (f === termoNorm || r === termoNorm) return 0;
+      if (f.indexOf(termoNorm) >= 0 || r.indexOf(termoNorm) >= 0) return 1;
+      if (tokens.length && (f.indexOf(tokens[0]) === 0 || r.indexOf(tokens[0]) === 0)) return 2;
+      return 3;
+    };
+    achados.sort(function (a, b) { return pontos(a) - pontos(b); });
+    return { lista: achados, aproximado: aproximado };
+  }
+
+  function abrirClientes() {
+    limpar('tela-painel'); limpar('tela-escolha'); limpar('tela-cliente');
+    botaoVoltar(false);
+    restaurarTextoFicha();
+    document.body.classList.add('fora-do-pedido');
+
+    var t = el(
+      '<div id="tela-cliente"><div class="lg-card" style="max-width:520px">' +
+      '<h1>Localize seu cliente</h1>' +
+      '<p>Para iniciar um pedido, você precisa localizar seu cliente.</p>' +
+      '<div id="cl-andamento"></div>' +
+      '<div class="cl-busca"><input id="cl-busca" placeholder="CNPJ, nome, fantasia ou cidade" autocomplete="off">' +
+      '<button class="lg-btn" id="cl-buscar">Buscar</button></div>' +
+      '<div class="cl-msg" id="cl-msg"></div><div id="cl-lista"></div>' +
+      '<div class="cl-cad" id="cl-cad" style="display:none">Não achou seu cliente? <a id="cl-cad-link">Cadastre seu cliente</a></div>' +
+      '<button class="lg-btn lg-sec" id="cl-voltar">← Voltar ao painel</button></div></div>');
+    document.body.appendChild(t);
+
+    var inp = document.getElementById('cl-busca');
+    var msg = document.getElementById('cl-msg');
+    var lista = document.getElementById('cl-lista');
+    var cad = document.getElementById('cl-cad');
+
+    // Pedido em andamento (carrinho ou cliente já preenchidos): permite continuar sem perder nada
+    var nItens = 0;
+    try { nItens = Object.keys(SELECIONADOS).length; } catch (e) {}
+    var campo = function (id) { var x = document.getElementById(id); return x ? x.value.trim() : ''; };
+    var nomeAtual = campo('cli-fantasia') || campo('cli-razao') || campo('cli-cnpj');
+    if (nItens > 0 || nomeAtual) {
+      var box = document.getElementById('cl-andamento');
+      box.className = 'cl-and';
+      box.appendChild(document.createTextNode('Pedido em andamento' + (nomeAtual ? ': ' + nomeAtual : '') +
+        (nItens ? ' · ' + nItens + ' produto' + (nItens > 1 ? 's' : '') : '')));
+      var bc = document.createElement('button');
+      bc.className = 'lg-btn';
+      bc.textContent = 'Continuar pedido';
+      bc.onclick = function () { limpar('tela-cliente'); abrirPedido(); };
+      box.appendChild(document.createElement('br'));
+      box.appendChild(bc);
+    }
+
+    function buscar() {
+      var v = inp.value.trim();
+      msg.className = 'cl-msg';
+      if (!v) { msg.className = 'cl-msg cl-aviso'; msg.textContent = 'Digite o CNPJ, o nome ou a cidade do seu cliente.'; return; }
+      if (!CLIENTES.length) { msg.className = 'cl-msg cl-aviso'; msg.textContent = 'Os clientes ainda estão carregando. Tente de novo em alguns segundos.'; return; }
+
+      var r = procurarClientes(v);
+      var LIMITE = 50;
+      lista.innerHTML = '';
+      cad.style.display = 'block';
+
+      if (!r.lista.length) { msg.className = 'cl-msg cl-aviso'; msg.textContent = 'Nenhum cliente localizado.'; return; }
+
+      msg.textContent = 'Clique em cima do cliente desejado.' +
+        (r.aproximado ? ' (resultados aproximados)' : '') +
+        (r.lista.length > LIMITE ? ' Mostrando os ' + LIMITE + ' primeiros, refine a busca.' : '');
+
+      r.lista.slice(0, LIMITE).forEach(function (c) {
+        var d = document.createElement('div');
+        d.className = 'cl-item';
+        var n = document.createElement('b');
+        n.textContent = c.fantasia || c.razao || '-';
+        var s = document.createElement('span');
+        var partes = [];
+        if (c.razao && c.razao !== (c.fantasia || c.razao)) partes.push(c.razao);
+        partes.push('CNPJ/CPF: ' + fmtDoc(c.cnpj));
+        var cidade = [c.municipio, c.estado].filter(Boolean).join('/');
+        if (cidade) partes.push(cidade);
+        s.textContent = partes.join(' · ');
+        d.appendChild(n); d.appendChild(s);
+        d.onclick = function () { abrirFicha(c); };
+        lista.appendChild(d);
+      });
+    }
+
+    document.getElementById('cl-buscar').onclick = buscar;
+    inp.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') buscar(); });
+    document.getElementById('cl-cad-link').onclick = abrirCadastro;
+    document.getElementById('cl-voltar').onclick = mostrarPainel;
+    t._buscar = buscar;
+    inp.focus();
+  }
+
+  // Clicou no cliente: abre a ficha (modal que o app já tem) com o botão "Iniciar pedido"
+  function abrirFicha(c) {
+    var t = telaCliente();
+    if (!t) return;
+    fichaAberta = true;
+    t.style.display = 'none';
+    mostrarFichaCompletaCliente(c);
+    var b = document.getElementById('btn-selecionar-cliente-busca');
+    if (!b) return;
+    b.textContent = 'Iniciar pedido';
+    var original = b.onclick;
+    b.onclick = function () {
+      if (original) original.call(b);   // preenche os dados do cliente, UF e preços
+      fichaAberta = false;
+      limpar('tela-cliente');
+      abrirPedido();
+    };
+  }
+
+  function restaurarTextoFicha() {
+    var b = document.getElementById('btn-selecionar-cliente-busca');
+    if (b) b.textContent = '🛒 Fazer Pedido';
+  }
+
+  // "Voltar para a Busca" na ficha: mostra de novo a tela de clientes
+  var fecharFichaOriginal = window.fecharModalDetalhesCliente;
+  window.fecharModalDetalhesCliente = function () {
+    if (fecharFichaOriginal) fecharFichaOriginal.apply(this, arguments);
+    if (fichaAberta) {
+      fichaAberta = false;
+      var t = telaCliente();
+      if (t) t.style.display = '';
+    }
+  };
+
+  // Cadastro de cliente: abre o cadastro que o app já tem e, ao fechar/salvar, volta para esta tela
+  function abrirCadastro() {
+    var t = telaCliente();
+    if (!t) return;
+    if (typeof abrirModalNovoCliente !== 'function') { alert('Cadastro de cliente indisponível.'); return; }
+    var termo = document.getElementById('cl-busca').value.trim();
+    cadastrando = true;
+    totalAntesCadastro = CLIENTES.length;
+    t.style.display = 'none';
+    abrirModalNovoCliente();
+    if (soDig(termo).length >= 11) {
+      var f = document.getElementById('nc-cnpj');
+      if (f) f.value = termo;
+    }
+  }
+
+  var fecharCadastroOriginal = window.fecharModalNovoCliente;
+  window.fecharModalNovoCliente = function () {
+    if (fecharCadastroOriginal) fecharCadastroOriginal.apply(this, arguments);
+    if (!cadastrando) return;
+    cadastrando = false;
+    var t = telaCliente();
+    if (!t) return;
+    t.style.display = '';
+    if (CLIENTES.length > totalAntesCadastro) {
+      // cliente novo salvo: o app pode abrir o modal de dados do pedido; aqui não queremos isso
+      setTimeout(function () {
+        var m = document.getElementById('modal-cliente');
+        if (m) { m.classList.remove('open'); m.style.display = 'none'; }
+      }, 0);
+      var novo = CLIENTES[CLIENTES.length - 1];
+      document.getElementById('cl-busca').value = novo.cnpj || novo.fantasia || novo.razao || '';
+      if (t._buscar) t._buscar();
+      var msg = document.getElementById('cl-msg');
+      if (msg) { msg.className = 'cl-msg'; msg.textContent = 'Cliente cadastrado! Clique em cima dele para iniciar o pedido.'; }
+    }
+  };
+
   // ---------- painel ----------
   function fazerPedido() {
     var sess = getSessao();
     if (!sess) return mostrarLogin();
-    if (sess.usuario.perfil === 'REPRESENTANTE') return abrirPedido();
-    if (sess.repre && sess.repre.codigo) { definirRepre(sess.repre.codigo); return abrirPedido(); }
+    if (sess.usuario.perfil === 'REPRESENTANTE') return abrirClientes();
+    if (sess.repre && sess.repre.codigo) { definirRepre(sess.repre.codigo); return abrirClientes(); }
     abrirEscolha();
   }
 
   // Para novos itens do menu, acrescente aqui. Sem "acao" aparece como "Em breve".
   var MENU = [
-    { icone: '🛒', titulo: 'Fazer pedido', desc: 'Catálogo, carrinho e envio do pedido', acao: fazerPedido },
+    { icone: '🛒', titulo: 'Fazer pedido', desc: 'Localize o cliente, monte o carrinho e envie o pedido', acao: fazerPedido },
     { icone: '📦', titulo: 'Meus pedidos', desc: 'Acompanhe os pedidos enviados', acao: null },
     { icone: '🧾', titulo: 'Meus orçamentos', desc: 'Orçamentos salvos', acao: null }
   ];
@@ -257,8 +491,9 @@
     var sess = getSessao();
     if (!sess) return mostrarLogin();
     botaoVoltar(false);
+    restaurarTextoFicha();
     document.body.classList.add('fora-do-pedido');
-    limpar('tela-painel'); limpar('tela-escolha');
+    limpar('tela-painel'); limpar('tela-escolha'); limpar('tela-cliente');
 
     var u = sess.usuario, mes = new Date().getMonth();
     var ehRepre = u.perfil === 'REPRESENTANTE';
@@ -300,7 +535,8 @@
   }
 
   function abrirPedido() {
-    limpar('tela-painel'); limpar('tela-escolha');
+    limpar('tela-painel'); limpar('tela-escolha'); limpar('tela-cliente');
+    restaurarTextoFicha();
     document.body.classList.remove('fora-do-pedido');
     botaoVoltar(true);
     if (CODIGO_REPRE && typeof atualizarExibicaoRepre === 'function') atualizarExibicaoRepre();
