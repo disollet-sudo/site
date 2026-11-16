@@ -42,7 +42,8 @@
     '.lg-erro{color:#c0392b;font-size:13px;min-height:18px;margin-bottom:8px;text-align:center}' +
     '.pn-topo{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;font-size:13px;color:#555}' +
     '.pn-topo a{color:#c0392b;cursor:pointer;text-decoration:underline}' +
-    '.pn-btn{margin-bottom:10px}';
+    '.pn-btn{margin-bottom:10px}' +
+    '#btn-voltar-painel{position:fixed;left:10px;bottom:10px;z-index:900;padding:9px 14px;border:0;border-radius:20px;background:#1D9E75;color:#fff;font-size:13px;font-weight:bold;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer}';
   document.head.appendChild(css);
 
   var LOGO = 'https://drive.google.com/thumbnail?id=1xtobPLkiaoKzECRoMO3b4NMgb8i0bBc3&sz=w300';
@@ -60,13 +61,21 @@
     return null;
   }
 
-  window.Sessao = { get: getSessao, sair: sair };
-
   function sair() {
     localStorage.removeItem(CHAVE);
     localStorage.removeItem('repre_cod');
     location.reload();
   }
+
+  // Gestor/Admin: lembra que já escolheu o representante, para não perdê-lo ao recarregar a página
+  function marcarRepre() {
+    var s = getSessao();
+    if (!s) return;
+    s.repreEscolhido = true;
+    localStorage.setItem(CHAVE, JSON.stringify(s));
+  }
+
+  window.Sessao = { get: getSessao, sair: sair, marcarRepre: marcarRepre };
 
   // Aplica a sessão no app: define o código do representante.
   // - REPRESENTANTE: fixo, vindo da planilha (e esconde o botão "Trocar").
@@ -88,9 +97,20 @@
     if (CODIGO_REPRE && typeof atualizarExibicaoRepre === 'function') atualizarExibicaoRepre();
   }
 
+  // ---------- botão "Voltar ao painel" (aparece só na tela de pedido) ----------
+  function botaoVoltar(mostrar) {
+    var b = document.getElementById('btn-voltar-painel');
+    if (!mostrar) { if (b) b.remove(); return; }
+    if (b) return;
+    b = el('<button id="btn-voltar-painel">← Painel</button>');
+    b.onclick = mostrarPainel;
+    document.body.appendChild(b);
+  }
+
   // ---------- login ----------
   function mostrarLogin() {
     limpar('tela-painel');
+    botaoVoltar(false);
     document.body.classList.add('fora-do-pedido');
     var t = el(
       '<div id="tela-login"><div class="lg-card">' +
@@ -135,6 +155,7 @@
   function mostrarPainel() {
     var sess = getSessao();
     if (!sess) return mostrarLogin();
+    botaoVoltar(false);
     document.body.classList.add('fora-do-pedido');
     limpar('tela-painel');
     var p = el(
@@ -150,6 +171,7 @@
   function abrirPedido() {
     limpar('tela-painel');
     document.body.classList.remove('fora-do-pedido');
+    botaoVoltar(true);
     var sess = getSessao();
     // Gestor/Admin sem representante escolhido: pede o código antes de começar
     if (sess && sess.usuario.perfil !== 'REPRESENTANTE' && !CODIGO_REPRE && typeof abrirModalRepre === 'function') {
