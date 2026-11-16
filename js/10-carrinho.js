@@ -4,7 +4,8 @@
    UF/prazo e o calcularTudo() — a função central que recalcula preços,
    descontos, IPI, frete e monta o objeto DADOS_PDF_PRONTO.
    Depende de: 01-estado-global.js, 05-utils-busca.js,
-               06-precos-kne825-millenium.js (getPrecoFinal, getInfoPrecoItem),
+               06-precos-kne825-millenium.js (getPrecoFinal, getInfoPrecoItem,
+               getInfoMillenium),
                08-catalogo-filtros.js (filtrar, somarBrutoPrevia),
                03-persistencia-local.js
    ============================================= */
@@ -266,6 +267,24 @@ function calcularTotalLiquidoComTabela(tabela, pctPrazo, uf) {
   return liquido;
 }
 
+// =============================================
+// PEDIDO MÍNIMO ATIVO
+// CORRIGIDO: o pedido mínimo que trava o botão "Efetuar Pedido" é SEMPRE
+// o mínimo geral por ICMS/UF (aba "Frete" -> configFrete.pedidoMinimo),
+// mesmo quando há item da tabela MILLENIUM no carrinho.
+//
+// A coluna "Pedido mínimo" (coluna B) da aba MILLENIUM NÃO trava mais o
+// botão — ela continua servindo apenas como um dos critérios internos de
+// getInfoMillenium() (06-precos-kne825-millenium.js) pra decidir se aplica
+// o preço especial daquela tabela ou não. São duas regras independentes:
+//   - Pedido mínimo pra liberar o botão de pedido -> sempre ICMS/UF (aqui).
+//   - Pedido mínimo pra "destravar" o preço Millenium de um item -> dentro
+//     de getInfoMillenium(), usando item.minimo (coluna B da MILLENIUM).
+// =============================================
+function obterPedidoMinimoAtivo(icmsBase, prazoBase, configFrete) {
+  return configFrete ? configFrete.pedidoMinimo : 0;
+}
+
 function calcularTudo() {
   let uf = document.getElementById('uf-d').value;
   let icmsBase = (["RS", "SC", "PR", "SP", "MG", "RJ"].includes(uf)) ? "12" : "7";
@@ -309,6 +328,7 @@ function calcularTudo() {
       descricao: p.descricao,
       qtd: qty,
       ncm: p.ncm || '',
+      codigoEan: p.codigoEan || '',
       valorComDesconto: valorComDescontoPrazo,
       valorIpiCada: valorIpiCada,
       ipi: p.ipi || 0,
@@ -331,8 +351,15 @@ function calcularTudo() {
   let valDescPrazo = subtotalProdutos - totalComDescontoAcumulado;
   let subtotalLiquidoParcial = totalComDescontoAcumulado + totalIpi;
 
-  let freteVal = 0, configFrete = FRETE_REGRAS[uf] || null;
-  if (configFrete && subtotalBrutoInicial < configFrete.pedidoMinimo) freteVal = -1;
+  let configFrete = FRETE_REGRAS[uf] || null;
+  // Código da transportadora (coluna E da aba "Frete") — vem junto de
+  // FRETE_REGRAS[uf] e precisa ser preenchido no Cigam junto com o pedido.
+  let transportadoraCod = configFrete ? (configFrete.transportadora || '') : '';
+  let pedidoMinimoAtivo = obterPedidoMinimoAtivo(icmsBase, prazoBase, configFrete);
+  let abaixoDoMinimo = pedidoMinimoAtivo > 0 && subtotalBrutoInicial < pedidoMinimoAtivo;
+
+  let freteVal = 0;
+  if (abaixoDoMinimo) freteVal = -1;
   else if (configFrete && subtotalBrutoInicial < configFrete.gratis) freteVal = configFrete.intervalo;
 
   let totalLiquido = subtotalLiquidoParcial + (freteVal > 0 ? freteVal : 0);
@@ -341,7 +368,7 @@ function calcularTudo() {
   DADOS_PDF_PRONTO = {
     tipoAcao: '',
     logoUrl: document.querySelector('#logo-area img') ? document.querySelector('#logo-area img').src : '',
-    codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, itens: listaItensPdf,
+    codigoRepre: CODIGO_REPRE, prazo: prazoTexto, estado: uf, transportadora: transportadoraCod, itens: listaItensPdf,
     clienteInfo: '', observacoes: '',
     contas: {
       subtotal: subtotalProdutos,
@@ -374,21 +401,49 @@ function calcularTudo() {
     document.getElementById(prefix + '-ipi-val').innerText = '+ ' + formatDin(totalIpi);
     let fLabel = document.getElementById(prefix + '-frete-val');
     if (!uf) fLabel.innerText = "Selecione o Estado";
-    else if (freteVal === -1) { fLabel.innerText = `Falta ${formatDin(configFrete.pedidoMinimo - subtotalBrutoInicial)}`; fLabel.style.color = 'red'; }
+    else if (freteVal === -1) { fLabel.innerText = `Falta ${formatDin(pedidoMinimoAtivo - subtotalBrutoInicial)}`; fLabel.style.color = 'red'; }
     else { fLabel.innerText = freteVal === 0 ? "GRÁTIS" : formatDin(freteVal); fLabel.style.color = ''; }
+    let tLabel = document.getElementById(prefix + '-transportadora');
+    if (tLabel) tLabel.innerText = transportadoraCod || '-';
     document.getElementById(prefix + '-total').innerText = formatDin(totalLiquido);
   };
   upd('rd'); upd('rm');
 
-  let chaveRenderizacao = tabelaAtiva + '|' + prazoBase;
-  if (chaveRenderizacao !== TABELA_ATIVA_ANTERIOR) {
-    TABELA_ATIVA_ANTERIOR = chaveRenderizacao;
-    filtrar();
+  // Aviso de "abaixo do pedido mínimo" também no card fixo do rodapé mobile
+  // (a barra que fica sempre visível antes de abrir a aba/sheet).
+  let mb = document.getElementById('mb-info');
+  if (contItens === 0) {
+    mb.innerHTML = 'Selecione produtos';
+  } else if (freteVal === -1) {
+    mb.innerHTML = `<b>${contItens} cx</b><br><span style="color:#c0392b;font-weight:700;">⚠️ Falta ${formatDin(pedidoMinimoAtivo - subtotalBrutoInicial)} p/ pedido mínimo</span>`;
+  } else {
+    mb.innerHTML = `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
   }
 
-  let mb = document.getElementById('mb-info');
-  mb.innerHTML = contItens === 0 ? 'Selecione produtos' : `<b>${contItens} cx</b><br>${formatDin(totalLiquido)}`;
+  // ---------------------------------------------------------------------
+  // CORREÇÃO (bug: card da tela principal não sincronizava com o carrinho)
+  // Antes, filtrar() (que redesenha a grade principal — preço do card,
+  // badge de quantidade "sel") só era chamada quando a CHAVE tabelaAtiva+
+  // prazoBase mudava. Só que a maioria dos eventos de adicionar/remover
+  // item do carrinho NÃO muda tabelaAtiva nem prazoBase — então a grade
+  // ficava com estado antigo: preço Millenium não atualizava quando o
+  // total cruzava o "Pedido mínimo" (ex: R$1,69 -> R$1,45 ao passar de
+  // R$5.000), e o badge de quantidade/realce do card não refletia
+  // add/remove.
+  //
+  // filtrar() (08-catalogo-filtros.js) já é debounced (150ms via
+  // setTimeout) e renderizar() é idempotente — sempre reconstrói a grade
+  // do zero lendo SELECIONADOS e getPrecoFinal() na hora. Por isso é
+  // seguro chamar filtrar() sempre que calcularTudo() rodar, sem
+  // condicional: não há custo perceptível (debounce absorve chamadas em
+  // rajada) e garante que a grade principal sempre reflete o estado atual
+  // do carrinho, não só quando a tabela de preço muda.
+  TABELA_ATIVA_ANTERIOR = tabelaAtiva + '|' + prazoBase;
+  filtrar();
 
+  // "Efetuar Pedido" fica bloqueado quando o carrinho está abaixo do pedido
+  // mínimo ativo (freteVal === -1) — nesse caso só o botão "Orçamento" fica
+  // disponível (ele só depende de ter item no carrinho).
   let lib = contItens > 0 && uf !== "" && freteVal !== -1;
   document.getElementById('btn-orc-d').disabled = !lib;
   document.getElementById('btn-orc-m').disabled = !lib;
