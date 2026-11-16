@@ -1,0 +1,146 @@
+/* =============================================
+   Di Solle — 20. MEUS PEDIDOS
+   Painel > "Meus pedidos": mostra tela de carregamento e depois a lista
+   de pedidos que o representante ja enviou (PDFs da pasta Pedidos no Drive).
+   Carregar DEPOIS do 19-login.js.
+   ============================================= */
+(function () {
+  'use strict';
+
+  // ===== AJUSTE 1: como o app guarda o usuario logado =====
+  // codigo = o numero que aparece no nome do PDF (ex.: 600600)
+  function usuarioAtual() {
+    var u = window.usuarioLogado || window.usuario || window.usuarioAtual || {};
+    return {
+      codigo: String(u.codigo || u.repic || u.cod || '').trim(),
+      nome: String(u.nome || u.name || '').trim()
+    };
+  }
+
+  // ===== AJUSTE 2: endereco (URL /exec) do Apps Script publicado =====
+  function urlScript() {
+    return window.URL_SCRIPT || window.SCRIPT_URL || window.APPS_SCRIPT_URL || '';
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  // ---------- estilos ----------
+  function injetarEstilos() {
+    if (document.getElementById('mp-style')) return;
+    var st = document.createElement('style');
+    st.id = 'mp-style';
+    st.textContent =
+      '#mp-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100000;display:flex;align-items:flex-end;justify-content:center}' +
+      '#mp-box{background:#fff;width:100%;max-width:560px;max-height:88vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column;overflow:hidden}' +
+      '@media(min-width:600px){#mp-overlay{align-items:center}#mp-box{border-radius:16px}}' +
+      '.mp-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e5e5e5;font-weight:bold;font-size:17px;color:#0f6e56}' +
+      '.mp-x{border:none;background:none;font-size:24px;line-height:1;cursor:pointer;color:#666;padding:4px 8px}' +
+      '.mp-body{overflow-y:auto;padding:12px 16px 20px;-webkit-overflow-scrolling:touch}' +
+      '.mp-load{text-align:center;padding:40px 10px;color:#555;font-size:15px}' +
+      '.mp-spin{width:42px;height:42px;margin:0 auto 14px;border:4px solid #E1F5EE;border-top-color:#1D9E75;border-radius:50%;animation:mpspin .8s linear infinite}' +
+      '@keyframes mpspin{to{transform:rotate(360deg)}}' +
+      '.mp-sum{font-size:13px;color:#555;margin-bottom:10px}' +
+      '.mp-item{border:1px solid #e1e1e1;border-radius:10px;padding:11px 12px;margin-bottom:9px;background:#fafafa}' +
+      '.mp-cli{font-weight:bold;font-size:15px;color:#222;margin-bottom:3px}' +
+      '.mp-meta{font-size:13px;color:#666}' +
+      '.mp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}' +
+      '.mp-data{font-size:13px;color:#0f6e56;font-weight:bold}' +
+      '.mp-pdf{background:#1D9E75;color:#fff;text-decoration:none;font-weight:bold;font-size:13px;padding:7px 14px;border-radius:8px}' +
+      '.mp-vazio,.mp-erro{text-align:center;padding:30px 10px;color:#555;font-size:15px}' +
+      '.mp-erro button{margin-top:12px;background:#1D9E75;color:#fff;border:none;border-radius:8px;padding:9px 20px;font-size:14px;font-weight:bold;cursor:pointer}';
+    document.head.appendChild(st);
+  }
+
+  // ---------- modal ----------
+  function fechar() {
+    var o = document.getElementById('mp-overlay');
+    if (o) o.remove();
+  }
+
+  function abrirModal() {
+    fechar();
+    injetarEstilos();
+    var o = document.createElement('div');
+    o.id = 'mp-overlay';
+    o.innerHTML =
+      '<div id="mp-box">' +
+        '<div class="mp-head"><span>📦 Meus pedidos</span><button class="mp-x" id="mp-fechar">×</button></div>' +
+        '<div class="mp-body" id="mp-body"></div>' +
+      '</div>';
+    o.addEventListener('click', function (e) { if (e.target === o) fechar(); });
+    document.body.appendChild(o);
+    document.getElementById('mp-fechar').onclick = fechar;
+  }
+
+  function corpo(html) {
+    var b = document.getElementById('mp-body');
+    if (b) b.innerHTML = html;
+  }
+
+  function mostrarCarregando() {
+    corpo('<div class="mp-load"><div class="mp-spin"></div>Carregando seus pedidos...</div>');
+  }
+
+  function mostrarErro(msg) {
+    corpo('<div class="mp-erro">Não consegui carregar os pedidos.<br><small>' + esc(msg) + '</small><br>' +
+          '<button id="mp-retry">Tentar de novo</button></div>');
+    var r = document.getElementById('mp-retry');
+    if (r) r.onclick = carregar;
+  }
+
+  function mostrarLista(lista, nomeRep) {
+    if (!lista.length) {
+      corpo('<div class="mp-vazio">Você ainda não tem pedidos enviados.</div>');
+      return;
+    }
+    var h = '<div class="mp-sum">' + lista.length + (lista.length === 1 ? ' pedido' : ' pedidos') + '</div>';
+    lista.forEach(function (p) {
+      h += '<div class="mp-item">' +
+             '<div class="mp-cli">' + esc(p.cliente) + '</div>' +
+             '<div class="mp-meta">Representante: ' + esc(nomeRep || p.rep || p.codigo) + '</div>' +
+             '<div class="mp-row">' +
+               '<span class="mp-data">' + esc(p.data) + (p.hora ? ' às ' + esc(p.hora) : '') + '</span>' +
+               '<a class="mp-pdf" href="' + esc(p.url) + '" target="_blank" rel="noopener">Abrir PDF</a>' +
+             '</div>' +
+           '</div>';
+    });
+    corpo(h);
+  }
+
+  // ---------- busca no Apps Script ----------
+  function carregar() {
+    var u = usuarioAtual();
+    var base = urlScript();
+    mostrarCarregando();
+
+    if (!base) { mostrarErro('Endereço do Apps Script não configurado (URL_SCRIPT).'); return; }
+    if (!u.codigo) { mostrarErro('Código do representante não encontrado no login.'); return; }
+
+    var ctrl = ('AbortController' in window) ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 25000);
+
+    var url = base + (base.indexOf('?') >= 0 ? '&' : '?') +
+              'action=listarPedidos&codigo=' + encodeURIComponent(u.codigo);
+
+    fetch(url, ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        clearTimeout(timer);
+        if (!res || res.ok === false) throw new Error((res && res.erro) || 'Resposta inválida');
+        mostrarLista(res.pedidos || [], u.nome);
+      })
+      .catch(function (e) {
+        clearTimeout(timer);
+        mostrarErro(e && e.name === 'AbortError' ? 'Demorou demais para responder.' : (e && e.message) || String(e));
+      });
+  }
+
+  window.abrirMeusPedidos = function () {
+    abrirModal();
+    carregar();
+  };
+})();
