@@ -1,0 +1,21 @@
+{
+  "rules": {
+    "suporte": {
+      "meta": {
+        ".read": "auth != null && auth.token.email === 'SEU_EMAIL_DE_ADMIN'",
+        ".write": "auth != null && auth.token.email === 'SEU_EMAIL_DE_ADMIN'",
+        "$sid": { ".write": "$sid.length >= 16" }
+      },
+      "ev": {
+        ".read": "auth != null && auth.token.email === 'SEU_EMAIL_DE_ADMIN'",
+        ".write": "auth != null && auth.token.email === 'SEU_EMAIL_DE_ADMIN'",
+        "$sid": { ".write": "$sid.length >= 16" }
+      },
+      "cmd": {
+        ".read": "auth != null && auth.token.email === 'SEU_EMAIL_DE_ADMIN'",
+        ".write": "auth != null && auth.token.email === 'SEU_EMAIL_DE_ADMIN'",
+        "$sid": { ".read": "$sid.length >= 16" }
+      }
+    }
+  }
+}
