@@ -10,6 +10,11 @@
 // o que destruía o ponto decimal de números puros (3.276 virava 3276).
 // Agora: número puro é usado direto; só strings passam pela limpeza
 // de formato brasileiro (ponto de milhar + vírgula decimal).
+//
+// AJUSTE (bug do Pedido Mínimo): strings SEM vírgula mas com ponto de
+// milhar puro (ex: "3.000", "12.500.000") antes eram lidas como decimal
+// (3.000 virava 3.0). Agora, se o ponto separa grupos de exatamente 3
+// dígitos e não há vírgula, é tratado como milhar e removido.
 function parseValorNum(val) {
   if (val === undefined || val === null || val === '') return 0;
 
@@ -21,11 +26,15 @@ function parseValorNum(val) {
   let s = String(val).replace('R$', '').replace('%', '').trim();
   if (!s) return 0;
 
-  // Só remove pontos como separador de milhar se houver vírgula decimal
-  // (formato BR: "1.234,56"). Sem vírgula, o ponto (se existir) já é o
-  // separador decimal normal (ex: "3.6") e não deve ser removido.
   if (s.indexOf(',') !== -1) {
+    // Formato BR com decimal: "1.234,56" -> remove pontos de milhar, vírgula vira ponto.
     s = s.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) {
+    // Só tem ponto(s), todos separando grupos de EXATAMENTE 3 dígitos
+    // (ex: "3.000", "12.500", "1.234.567") -> são separadores de milhar,
+    // não decimal. Um número tipo "3.6" não bate nesse padrão e continua
+    // sendo lido como decimal normalmente.
+    s = s.replace(/\./g, '');
   }
 
   let n = parseFloat(s);
@@ -54,6 +63,19 @@ function getPrecoEspecialKNE825(produto) {
 // =============================================
 // TABELA ESPECIAL MILLENIUM (Regra por Colunas Diretas)
 // =============================================
+// LÓGICA (confirmada): um item da aba MILLENIUM só usa o preço especial
+// dessa tabela se, ao mesmo tempo:
+//   1) o total bruto do carrinho (brutoCarrinho) bater o "Pedido mínimo"
+//      da coluna B daquele item (item.minimo) — abaixo disso, o item cai
+//      pro preço da tabela normal;
+//   2) existir valor preenchido na coluna correspondente ao PRAZO
+//      selecionado (Antecipado/28/35/42/56/63 dias) — sem valor naquela
+//      coluna, também cai pro preço normal.
+// Esse "Pedido mínimo" da coluna B NÃO é o pedido mínimo geral que trava
+// o botão "Efetuar Pedido" (isso é outra regra, sempre por ICMS/UF — ver
+// obterPedidoMinimoAtivo em 10-carrinho.js). Aqui ele só decide qual
+// PREÇO usar.
+//
 // ignorarMinimo: quando true, pula a checagem do "Pedido mínimo" (coluna B).
 // Usado por getPrecoBrutoItem() pra saber o preço Millenium do item SEM
 // depender do próprio bruto do carrinho (evita loop circular).
@@ -97,7 +119,9 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho, ignorarMi
       continue;
     }
 
-    // 2. Validação de Pedido Mínimo (Coluna B) — pulada quando ignorarMinimo=true
+    // 2. Validação de Pedido Mínimo (Coluna B) — pulada quando ignorarMinimo=true.
+    // Item só qualifica pro preço Millenium se o bruto do carrinho já bater
+    // esse mínimo específico da coluna B.
     if (!ignorarMinimo) {
       let minimo = parseValorNum(item.minimo);
       if (minimo > 0 && brutoCarrinho < minimo) {
@@ -127,14 +151,30 @@ function getInfoMillenium(produto, icmsBase, prazoBase, brutoCarrinho, ignorarMi
 }
 
 // Retorna o preço "bruto" de um item para fins de soma do carrinho (checar Pedido Mínimo/frete).
-// Se o item está na aba Millenium, usa o preço Millenium do prazo atual (ignorando o próprio
-// mínimo, pra não virar loop). Se não está na Millenium, usa a tabela normal como antes.
+//
+// CORRIGIDO (bug do loop circular do Pedido Mínimo): antes, esta função usava
+// o preço JÁ PROMOCIONAL do Millenium (via getInfoMillenium(..., ignorarMinimo=true))
+// para somar o bruto do carrinho. Só que esse bruto é exatamente o valor usado
+// depois para checar se o carrinho ATINGE o Pedido Mínimo que libera esse mesmo
+// desconto — ou seja, quanto maior o desconto Millenium, menor o bruto calculado,
+// dificultando (ou até impossibilitando) bater o próprio mínimo que libera o
+// desconto. Exemplo real: 3.000 un a R$1,45 (preço promo) = R$4.350 (não bate o
+// mínimo de R$5.000) -> cai pro preço cheio R$1,69 -> 3.000 x 1,69 = R$5.070
+// (bateria o mínimo, mas tarde demais, o preço já foi decidido como o cheio).
+//
+// Agora o bruto para checagem do Pedido Mínimo sempre usa o preço da tabela
+// NORMAL (cheio) — a mesma base que subtotalBrutoInicial/frete já usam — e só
+// cai para o preço Millenium como fallback, para itens que existem SOMENTE na
+// aba MILLENIUM (sem nenhuma linha correspondente na aba Tabela).
 function getPrecoBrutoItem(produto, icmsBase, prazoBase, tabelaBase) {
-  let mill = getInfoMillenium(produto, icmsBase, prazoBase, 0, true);
-  if (mill) return mill.preco;
-  return produto.emPromocao
+  let precoNormal = produto.emPromocao
     ? (produto.precosPromo && produto.precosPromo[tabelaBase] ? produto.precosPromo[tabelaBase] : 0)
     : (produto.precos && produto.precos[tabelaBase] ? produto.precos[tabelaBase] : 0);
+  if (precoNormal > 0) return precoNormal;
+
+  // Fallback: item não tem preço na tabela normal (só existe na MILLENIUM).
+  let mill = getInfoMillenium(produto, icmsBase, prazoBase, 0, true);
+  return mill ? mill.preco : 0;
 }
 
 // Retorna as informações detalhadas de preço do item
