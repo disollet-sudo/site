@@ -112,6 +112,13 @@ function parsearPedidoDiSolle(texto) {
   // Normaliza espaços múltiplos
   let t = texto.replace(/\s+/g, ' ');
 
+  // Remove as linhas de EAN e NCM (adicionadas depois no layout do PDF).
+  // Necessário porque: (1) elas quebram a sequência "código -> descrição"
+  // que a regex de itens espera logo abaixo, e (2) o código EAN também
+  // tem 13 dígitos, podendo ser confundido com o código de referência.
+  t = t.replace(/EAN:\s*\S+/gi, '').replace(/NCM:\s*\S+/gi, '');
+  t = t.replace(/\s+/g, ' ').trim();
+
   // ---- DADOS DO CLIENTE ----
   let campo = (label, proxLabels) => {
     let pattern = label + '\\s*[:\\-]?\\s*([\\s\\S]+?)(?=' + proxLabels + '|$)';
