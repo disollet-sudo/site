@@ -8,7 +8,7 @@
    Este arquivo precisa ser o PRIMEIRO <script> carregado no index.html.
    ============================================= */
 
-const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbz6qpZZE_6i0k-Caz3QZBC7JeHrOXWB5r6spNnxA1Yc3qwCLim0kk0Nn0o_vK8E7fDwFA/exec";
+const URL_GOOGLE_SCRIPT = "https://script.google.com/macros/s/AKfycbxz2Jt9FJE4Vqor-zbuxfNkoFm-7aH4b50f2ohsbNMsicEAPEuunmmOuqVOuJDb_jFRyg/exec";
 
 // --- ESTADO GLOBAL PRINCIPAL ---
 let PRODUTOS = [];
@@ -21,6 +21,7 @@ let PRODUTO_MODAL_ATIVO = null;
 let BLOQUEIA_SALVAMENTO_CNPJ = false;
 let MODO_MODAL_CLIENTE = 'pedido'; // 'pedido' ou 'orcamento' — controla o comportamento do modal de dados do cliente
 let ORCAMENTO_ATIVO_ID = null;     // id do orçamento salvo que está sendo editado no carrinho atual (null = nenhum)
+let ENVIANDO_PEDIDO = false; // true enquanto um pedido/orçamento está sendo enviado ao servidor
 let TABELA_ATIVA_ANTERIOR = null;  // guarda a última tabela de preço aplicada — usado para só
                                    // re-renderizar o grid de produtos quando ela realmente mudar
                                    // (evita recriar todos os cards/fotos a cada clique no carrinho)
@@ -74,3 +75,9 @@ const LINHAS_PRODUTO = [
   { nome: 'Inova',     prefixo: '38' }
 ];
 let FILTRO_LINHA_ATIVO = null; // prefixo de 2 dígitos ativo, ou null
+
+// --- INTEGRAÇÃO COM PAINEL METAS & REPIC (botão "Mix") ---
+const URL_REPIC_META = "https://script.google.com/macros/s/AKfycby3eaBjmToS2cFZttspe-6LeG___EN0NKHXIbi1fwTXZiALvKVQAwdZGkx4ZKn6F7_ErA/exec";
+let PACOTE_REPIC_META = null;
+let PACOTE_REPIC_META_TS = null;
+const REPIC_PADRAO_CLIENTE_NOVO_MIX = 120; // mesma regra do painel
