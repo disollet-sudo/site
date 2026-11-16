@@ -498,28 +498,20 @@
   }
 
   // ---------- meus orçamentos (abre a lista que o app já tem, por cima do painel) ----------
-  var orcAberto = false, assinaturaAntes = '';
-  function assinaturaPedido() {
-    var k = '';
-    try { k = Object.keys(SELECIONADOS).sort().map(function (c) { return c + ':' + SELECIONADOS[c].qtd; }).join(','); } catch (e) {}
-    var c = document.getElementById('cli-cnpj');
-    return k + '|' + (c ? c.value : '');
-  }
   function abrirOrcamentos() {
     if (typeof abrirModalOrcamentos !== 'function') { alert('Orçamentos indisponíveis.'); return; }
-    orcAberto = true;
-    assinaturaAntes = assinaturaPedido();
     abrirModalOrcamentos();
   }
-  // Se ao fechar a lista o carrinho/cliente mudou (escolheu um orçamento), leva para a tela de pedido
-  var fecharOrcOriginal = window.fecharModalOrcamentos;
-  window.fecharModalOrcamentos = function () {
-    if (fecharOrcOriginal) fecharOrcOriginal.apply(this, arguments);
-    if (!orcAberto) return;
-    orcAberto = false;
-    setTimeout(function () {
-      if (assinaturaPedido() !== assinaturaAntes && document.body.classList.contains('fora-do-pedido')) abrirPedido();
-    }, 800);
+  // Ao escolher um orçamento na lista (carregarOrcamentoLocal, do 14-orcamentos.js),
+  // se o usuário está no painel, leva direto para a tela de pedido com os itens carregados.
+  var carregarOrcOriginal = window.carregarOrcamentoLocal;
+  window.carregarOrcamentoLocal = function (id) {
+    var r;
+    if (carregarOrcOriginal) r = carregarOrcOriginal.apply(this, arguments);
+    var carregou = false;
+    try { carregou = (ORCAMENTO_ATIVO_ID === id); } catch (e) {}
+    if (carregou && document.body.classList.contains('fora-do-pedido')) abrirPedido();
+    return r;
   };
 
   // ---------- painel ----------
