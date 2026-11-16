@@ -413,7 +413,7 @@
     b.textContent = 'Iniciar pedido';
     var original = b.onclick;
     b.onclick = function () {
-      if (original) original.call(b);   // preenche os dados do cliente, UF e preços
+      try { if (original) original.call(b); } catch (e) { console.warn('Ficha do cliente:', e); }
       fichaAberta = false;
       limpar('tela-cliente');
       abrirPedido();
