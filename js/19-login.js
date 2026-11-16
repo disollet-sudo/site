@@ -129,7 +129,7 @@
     salvarSessao(s);
   }
 
-  window.Sessao = { get: getSessao, sair: sair, marcarRepre: marcarRepre };
+  window.Sessao = { get: getSessao, sair: sair, marcarRepre: marcarRepre, api: urlApi };
 
   function definirRepre(cod) {
     try { CODIGO_REPRE = cod || ''; } catch (e) {}
@@ -526,7 +526,7 @@
   // Para novos itens do menu, acrescente aqui. Sem "acao" aparece como "Em breve".
   var MENU = [
     { icone: '🛒', titulo: 'Fazer pedido', desc: 'Localize o cliente, monte o carrinho e envie o pedido', acao: fazerPedido },
-    { icone: '📦', titulo: 'Meus pedidos', desc: 'Acompanhe os pedidos enviados', acao: null },
+    { icone: '📦', titulo: 'Meus pedidos', desc: 'Acompanhe os pedidos enviados', acao: function () { if (window.abrirMeusPedidos) window.abrirMeusPedidos(); else alert('Meus pedidos indisponível.'); } },
     { icone: '🧾', titulo: 'Meus orçamentos', desc: 'Orçamentos salvos para continuar editando', acao: abrirOrcamentos }
   ];
 
