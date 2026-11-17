@@ -581,7 +581,7 @@
     });
 
     // avisa o 21-painel-gestao.js (meta/vendido no cabeçalho e Top 5 para gestor/admin)
-    document.dispatchEvent(new CustomEvent('painel:montado'));
+    avisarPainel();
   }
 
   function abrirPedido() {
@@ -590,6 +590,14 @@
     document.body.classList.remove('fora-do-pedido');
     botaoVoltar(true);
     if (CODIGO_REPRE && typeof atualizarExibicaoRepre === 'function') atualizarExibicaoRepre();
+  }
+
+  // Avisa o 21-painel-gestao.js. Se a página ainda está carregando, espera os scripts
+  // de baixo (20 e 21) serem lidos, para eles não perderem o aviso.
+  function avisarPainel() {
+    var f = function () { document.dispatchEvent(new CustomEvent('painel:montado')); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f, { once: true });
+    else f();
   }
 
   window.voltarAoPainel = mostrarPainel;
