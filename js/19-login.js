@@ -57,6 +57,12 @@
     '.pn-ola small{color:#777;font-size:13px;display:block}.pn-ola h1{margin:2px 0 6px;color:#0f6e56;font-size:24px}' +
     '.pn-perfil{display:inline-block;background:#E1F5EE;color:#0f6e56;font-size:11px;font-weight:bold;border-radius:20px;padding:2px 10px}' +
     '.pn-meta{text-align:right}.pn-meta b{display:block;font-size:22px;color:#1D9E75;margin-top:2px}' +
+    '#pn-vendido{margin-top:12px;padding-top:10px;border-top:1px solid #e8eeeb;min-width:210px}' +
+    '#pn-vendido small{color:#777;font-size:13px;display:block}' +
+    '#pn-vendido b{display:block;font-size:22px;color:#0f6e56;margin:2px 0}' +
+    '#pn-vendido .sub{font-size:12px;color:#777}' +
+    '#pn-vendido .trk{height:9px;background:#e9efec;border-radius:20px;overflow:hidden;margin-top:8px}' +
+    '#pn-vendido .fil{height:100%;background:#1D9E75;border-radius:20px}' +
     '.pn-aviso{background:#fff4e5;color:#8a5a00;border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:14px}' +
     '.pn-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px}' +
     '.pn-tile{background:#fff;border:2px solid transparent;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.06);padding:20px;cursor:pointer;text-align:left;font-family:inherit}' +
@@ -582,6 +588,33 @@
 
     // avisa o 21-painel-gestao.js (meta/vendido no cabeçalho e Top 5 para gestor/admin)
     avisarPainel();
+    // representante: busca o vendido do mês
+    if (ehRepre && !semCodigo) carregarMeuResumo(sess);
+  }
+
+  // Representante: busca o vendido do mês (ação "meu_resumo" do Apps Script)
+  function carregarMeuResumo(sess) {
+    var api = urlApi();
+    if (!api) return;
+    fetch(api, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                 body: JSON.stringify({ acao: 'meu_resumo', token: sess.token }) })
+      .then(function (r) { return r.json(); })
+      .then(function (res) {
+        var alvo = document.querySelector('#tela-painel .pn-meta');
+        if (!alvo || !res || res.status !== 'success') return;
+        limpar('pn-vendido');
+        var pct = res.meta > 0 ? Math.round((res.vendido / res.meta) * 100) : null;
+        var d = document.createElement('div');
+        d.id = 'pn-vendido';
+        d.innerHTML = '<small>Vendido no mês</small><b></b><div class="sub"></div>' +
+          (pct !== null ? '<div class="trk"><div class="fil"></div></div>' : '');
+        d.querySelector('b').textContent = brl(res.vendido);
+        d.querySelector('.sub').textContent = (pct !== null ? pct + '% da meta · ' : '') +
+          res.pedidos + (res.pedidos === 1 ? ' pedido' : ' pedidos');
+        if (pct !== null) d.querySelector('.fil').style.width = Math.min(pct, 100) + '%';
+        alvo.appendChild(d);
+      })
+      .catch(function () {});
   }
 
   function abrirPedido() {
