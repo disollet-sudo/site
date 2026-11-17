@@ -6,6 +6,7 @@
    Carregar ANTES do 16-init.js.
    Depende de: 01-estado-global.js, 04-representante.js,
                05-utils-busca.js, 11-clientes.js
+   Usado por: 20-meus-pedidos.js e 21-painel-gestao.js (carregar DEPOIS deste).
    ============================================= */
 
 (function () {
@@ -524,10 +525,12 @@
   }
 
   // Para novos itens do menu, acrescente aqui. Sem "acao" aparece como "Em breve".
+  // "perfis" (opcional): só esses perfis veem o botão.
   var MENU = [
     { icone: '🛒', titulo: 'Fazer pedido', desc: 'Localize o cliente, monte o carrinho e envie o pedido', acao: fazerPedido },
     { icone: '📦', titulo: 'Meus pedidos', desc: 'Acompanhe os pedidos enviados', acao: function () { if (window.abrirMeusPedidos) window.abrirMeusPedidos(); else alert('Meus pedidos indisponível.'); } },
-    { icone: '🧾', titulo: 'Meus orçamentos', desc: 'Orçamentos salvos para continuar editando', acao: abrirOrcamentos }
+    { icone: '🧾', titulo: 'Meus orçamentos', desc: 'Orçamentos salvos para continuar editando', acao: abrirOrcamentos },
+    { icone: '👥', titulo: 'Representantes', desc: 'Metas e vendas de cada representante', perfis: ['GESTOR', 'ADMIN'], acao: function () { if (window.abrirRepresentantes) window.abrirRepresentantes(); else alert('Representantes indisponível.'); } }
   ];
 
   function mostrarPainel() {
@@ -549,7 +552,7 @@
       '<div class="pn-topo"><img src="' + LOGO + '" alt="Di Solle"><a id="pn-sair">Sair</a></div>' +
       '<div class="pn-ola"><div><small>Bem-vindo,</small><h1 id="pn-nome"></h1><span class="pn-perfil" id="pn-perfil"></span></div>' +
       '<div class="pn-meta"><small id="pn-meta-rot"></small><b id="pn-meta-val"></b></div></div>' +
-      '<div id="pn-aviso"></div><div class="pn-grid" id="pn-grid"></div></div></div>');
+      '<div id="pn-aviso"></div><div class="pn-grid" id="pn-grid"></div><div id="pn-gestao"></div></div></div>');
     document.body.appendChild(p);
     document.getElementById('pn-nome').textContent = u.nome;
     document.getElementById('pn-perfil').textContent = PERFIS[u.perfil] || u.perfil;
@@ -565,6 +568,7 @@
     }
     var grid = document.getElementById('pn-grid');
     MENU.forEach(function (m) {
+      if (m.perfis && m.perfis.indexOf(u.perfil) < 0) return;   // botão restrito a certos perfis
       var ativo = !!m.acao && !(semCodigo && m.acao === fazerPedido);
       var b = document.createElement('button');
       b.className = 'pn-tile' + (ativo ? '' : ' off');
@@ -575,6 +579,9 @@
       if (ativo) b.onclick = m.acao;
       grid.appendChild(b);
     });
+
+    // avisa o 21-painel-gestao.js (meta/vendido no cabeçalho e Top 5 para gestor/admin)
+    document.dispatchEvent(new CustomEvent('painel:montado'));
   }
 
   function abrirPedido() {
